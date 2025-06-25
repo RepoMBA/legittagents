@@ -159,41 +159,6 @@ def download_processing_log(folder: str = ""):
             return FileResponse(log_path, filename=f"processing_log_{f}.log", media_type='text/plain')
     return {"error": "No processing_log.log found in any processed folder."}
 
-# @app.get("/download/move_log", response_class=FileResponse)
-# def download_latest_move_log():
-#     log_dir = Path("./Database/To_Be_Processed/move_logs")
-#     if not log_dir.is_dir():
-#         raise HTTPException(status_code=404, detail="Move-logs directory not found.")
-#     # pick *.log, sort by filename descending, take first
-#     log_files = sorted(log_dir.glob("*.log"), key=lambda p: p.name, reverse=True)
-#     if not log_files:
-#         raise HTTPException(status_code=404, detail="No move log file found.")
-#     latest = log_files[0]
-#     return FileResponse(latest, filename=latest.name, media_type="text/plain")
-
-# @app.get("/download/processing_log", response_class=FileResponse)
-# def download_latest_processing_log(folder: str = ""):
-#     processed_root = Path("./Database/Processed")
-#     if not processed_root.is_dir():
-#         raise HTTPException(status_code=404, detail="Processed directory not found.")
-#     # If caller specified a folder, use that
-#     if folder:
-#         candidate = processed_root / folder / "processing_log.log"
-#         if not candidate.exists():
-#             raise HTTPException(status_code=404, detail=f"No processing_log.log in '{folder}'.")
-#         return FileResponse(candidate, filename=f"processing_log_{folder}.log", media_type="text/plain")
-#     # otherwise auto-discover latest timestamped folder
-#     ts_dirs = [d for d in processed_root.iterdir() if d.is_dir() and d.name.isdigit()]
-#     if not ts_dirs:
-#         raise HTTPException(status_code=404, detail="No processed sub-folders found.")
-#     latest_dir = max(ts_dirs, key=lambda d: d.name)
-#     candidate = latest_dir / "processing_log.log"
-#     if not candidate.exists():
-#         raise HTTPException(status_code=404, detail=f"No processing_log.log in '{latest_dir.name}'.")
-#     return FileResponse(candidate,
-#                         filename=f"processing_log_{latest_dir.name}.log",
-#                         media_type="text/plain")
-
 @app.get("/download/excel")
 def download_excel(folder: str = ""):
     import os
