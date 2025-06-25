@@ -1,0 +1,8 @@
+fastmcp
+fastapi
+uvicorn[standard]
+python-multipart
+PyMuPDF
+openpyxl
+pandas
+aiofiles
