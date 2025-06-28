@@ -7,3 +7,11 @@ local_projects
 myenv
 .pyc
 aiagentenv
+agentenv
+.pyc
+.ipynb
+Helpers/__pycache__
+Services/__pycache__
+Utils/.ipynb_checkpoints
+Utils/file_mover.ipynb
+.DS_Store
