@@ -14,21 +14,67 @@ import io
 load_dotenv()
 
 # ---------- Configuration ----------
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_SCOPES             = os.getenv("DRIVE_SCOPE")
-FOLDER_ID            = os.getenv("DRIVE_FOLDER_ID")
 GOOGLE_EMAIL         = os.getenv("GOOGLE_EMAIL")
 GOOGLE_PASSWORD      = os.getenv("GOOGLE_PASSWORD")
 
-DATABASE                = os.getenv("BLOG_CONTENT_DATABASE")
-EXCEL_NAME              = os.getenv("EXCEL_NAME")
-EXCEL_PATH              = os.path.join(DATABASE, EXCEL_NAME)
+SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
+DRIVE_FOLDER_ID: str = os.getenv("DRIVE_FOLDER_ID") or ""
 
-creds                = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=DRIVE_SCOPES)
-drive                = build('drive', 'v3', credentials=creds)
+DATABASE: str = os.getenv("BLOG_CONTENT_DATABASE") or "./Database"
+EXCEL_NAME: str = os.getenv("EXCEL_NAME") or "published_articles.xlsx"
+EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
+
+SHARED_DRIVE_ID        = os.getenv("SHARED_DRIVE_ID")
+DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
+LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
+if SHARED_DRIVE_ID:
+    LIST_KWARGS.update({"driveId": SHARED_DRIVE_ID, "corpora": "drive"})
+
+creds = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE,
+    scopes=DRIVE_SCOPE
+)
+drive = build("drive", "v3", credentials=creds)
 # -------------------------------------
 
+# Ensure the local Excel directory exists
+os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
+
+# Columns to use when bootstrapping a brand-new sheet
+EXCEL_COLUMNS = [
+    "filename", "date_generated",
+    "posted_on_medium", "medium_date", "medium_url",
+    "posted_on_twitter", "twitter_date", "twitter_url",
+    "posted_on_linkedin", "linkedin_date", "linkedin_url"
+]
+
+def ensure_excel_on_drive() -> str:
+    """Return the Drive file-id for the tracking Excel.
+    If it doesn't exist, create a blank sheet locally and upload it, then
+    return the new file id.
+    """
+    query = f"name = '{EXCEL_NAME}' and '{DRIVE_FOLDER_ID}' in parents"
+    result = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
+    files = result.get("files", [])
+    if files:
+        return files[0]["id"]
+
+    # --- bootstrap a fresh sheet ---
+    df_blank = pd.DataFrame({c: [] for c in EXCEL_COLUMNS})
+    df_blank.to_excel(EXCEL_PATH, index=False)
+    media = MediaFileUpload(
+        EXCEL_PATH,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    metadata = {"name": EXCEL_NAME, "parents": [DRIVE_FOLDER_ID]}
+    file = drive.files().create(body=metadata, media_body=media, fields="id", **DRIVE_KWARGS).execute()
+    print(f"[INFO] Created new tracking sheet on Drive ({file['id']})")
+    return file["id"]
+
 def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
+    if not DRIVE_FOLDER_ID:
+        raise RuntimeError("DRIVE_FOLDER_ID env var is missing")
 
     for i, segment in enumerate(path_list):
         is_file = i == len(path_list) - 1
@@ -38,7 +84,7 @@ def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
             f"mimeType {'!=' if is_file else '='} 'application/vnd.google-apps.folder' and "
             "trashed = false"
         )
-        result = drive.files().list(q=query, fields="files(id, name)").execute()
+        result = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
         items = result.get("files", [])
         if not items:
             raise FileNotFoundError(f"{'File' if is_file else 'Folder'} '{segment}' not found under parent ID '{parent_id}'")
@@ -60,22 +106,15 @@ def path_extractor(chosen_file: str, platform: str) -> list:
     return file_path
 
 def download_excel_from_drive():
-    query = f"name = '{EXCEL_NAME}' and '{FOLDER_ID}' in parents"
-    result = drive.files().list(q=query, fields="files(id, name)").execute()
-    files = result.get("files", [])
-    if not files:
-        raise FileNotFoundError("Excel file not found on Drive.")
-
-    file_id = files[0]["id"]
+    file_id = ensure_excel_on_drive()
     request = drive.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
         status, done = downloader.next_chunk()
-
     fh.seek(0)
-    df = pd.read_excel(fh)
+    df = pd.read_excel(fh, dtype={"medium_url": str})
     return df, file_id
 
 def get_unpublished_filenames():
@@ -89,7 +128,7 @@ def shorten_url(url):
     return response.text.strip()
 
 def login_medium(page):
-    # 1) Go to Medium’s mobile sign-in
+    # 1) Go to Medium's mobile sign-in
     page.goto("https://medium.com/m/signin", wait_until="domcontentloaded")
     
     # 2) (Optional) dismiss cookie banner
@@ -99,7 +138,7 @@ def login_medium(page):
     except PlaywrightTimeoutError:
         pass
 
-    # 3) Click “Sign in with Google”
+    # 3) Click "Sign in with Google"
     page.wait_for_selector("a:has-text('Sign in with Google')", timeout=10_000)
     page.click("a:has-text('Sign in with Google')")
 
@@ -191,17 +230,19 @@ def main():
 
     file_path = path_extractor(chosen_file, 'medium')
 
-    raw = retrieve_file_from_drive_path(file_path, FOLDER_ID)
+    if not DRIVE_FOLDER_ID:
+        raise RuntimeError("DRIVE_FOLDER_ID env var is missing")
+    raw = retrieve_file_from_drive_path(file_path, DRIVE_FOLDER_ID)
     text = raw.decode('utf-8').splitlines()
 
-    # 6) Extract title (first non-empty, strip leading “# ”, then remove any “**”)
+    # 6) Extract title (first non-empty, strip leading "# ", then remove any "**")
     title = ""
     for line in text:
         if line.strip():
             title = line.lstrip('# ').strip().replace("**", "")
             break
 
-    # 7) Build body MD (skip the first line) and strip all “**”
+    # 7) Build body MD (skip the first line) and strip all "**"
     body_txt = "\n".join(text[1:]).replace("**", "")
 
     # 8) Launch Playwright & run

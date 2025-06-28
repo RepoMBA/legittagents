@@ -212,7 +212,7 @@ def update_excel(metadata: dict):
 
         df = pd.read_excel(EXCEL_PATH)
     else:
-        df = pd.DataFrame(columns=["filename", "date_generated", "posted_on_medium", "posted_on_twitter", "posted_on_linkedin"b])
+        df = pd.DataFrame(columns=["filename", "date_generated", "posted_on_medium", "posted_on_twitter", "posted_on_linkedin"])
         file_id = None
 
     df = pd.concat([df, pd.DataFrame([metadata])], ignore_index=True)
@@ -236,7 +236,7 @@ def main():
         raise
 
     log("Starting content generation run")
-    keywords = load_top_keywords(n=3)
+    keywords = load_top_keywords(n=1) # TODO: change to 3
     root_folder_id = ensure_drive_folder(today, parent_id=DRIVE_FOLDER_ID)
     folder_ids = {
         p: ensure_drive_folder(p, parent_id=root_folder_id)
