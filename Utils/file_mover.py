@@ -8,12 +8,10 @@ import pandas as pd
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from Helper.extract_pdf_to_excel import data_retriever as extract_data_from_pdf
-
-
+from Helper.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
-DATABASE_DIR = Path("./Database")
+DATABASE_DIR = Path("/Users/shresthkansal/LegittAI/legittagents/Database")
 TO_BE_PROCESSED = DATABASE_DIR / "To_Be_Processed"
 PROCESSING = DATABASE_DIR / "Processing"
 PROCESSED = DATABASE_DIR / "Processed"
@@ -21,13 +19,13 @@ LOG_FOLDER = TO_BE_PROCESSED / "move_logs"
 TODAY_STR = datetime.today().strftime("%Y%m%d%H%M%S")
 DATE_STR = datetime.today().strftime("%d/%m/%y %H:%M:%S")
 
+
 def init_directories():
     PROCESSING.mkdir(parents=True, exist_ok=True)
     PROCESSED.mkdir(parents=True, exist_ok=True)
     LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 
 init_directories()
-
 
 def get_today_folder() -> Path:
     """Returns the processing folder path for today's date, creating it if necessary."""
@@ -44,33 +42,102 @@ def log_move(filename: str, reg_no: str):
         # log.write(f"{filename} from folder {reg_no} moved to {TODAY_STR} folder on date {DATE_STR}\n")
         log.write(f"{filename} from folder {reg_no} moved to processing folder {TODAY_STR} on date {DATE_STR}\n")
 
-def move_file(filename: str, reg_no: str):
+def move_file(filepath: str, reg_no: str):
     """
     Moves a file from to_be_processed/[REG_NO]/ to processing/[TODAY'S_DATE]/
     and logs the move.
     """
+
+
+    full_path = Path(filepath)
+    filename = full_path.name
     src = TO_BE_PROCESSED / reg_no / filename
     if not src.exists():
         raise FileNotFoundError(f"{src} does not exist.")
 
     dest_folder = get_today_folder()
     # shutil.move(str(src), str(dest_folder / filename))
-    shutil.copy2(str(src), str(dest_folder / filename))
+    print(dest_folder)
+    shutil.move(str(src), f"{dest_folder}/{filename}")
 
     log_move(filename, reg_no)
     print(f"Moved {filename} from {reg_no} to {dest_folder}")
 
-def move_multiple_files(file_reg_list):
+def move_multiple_files(reg_no):
     """
     Moves multiple files. 
     file_reg_list: List of tuples like [("fileA.pdf", "123"), ("fileB.pdf", "456")]
     """
-    for filename, reg_no in file_reg_list:
+    folder_path = TO_BE_PROCESSED / reg_no
+    if not folder_path.exists():
+        raise FileNotFoundError(f"No such processing folder: {folder_path}")
+
+    pdf_files = list(folder_path.glob("*.pdf"))
+    if not pdf_files:
+        raise ValueError("No PDF files found in folder")
+        
+    for filename in pdf_files:
         try:
             move_file(filename, reg_no)
         except Exception as e:
             print(f"Error moving {filename} from {reg_no}: {e}")
 
+
+def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
+    # 1) Copy, parse & sort by date
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
+    df = df.sort_values(date_col).reset_index(drop=True)
+
+    # 2) Filter out no‐takeoff flights
+    valid = df[df[dep_col] != df[arr_col]].copy()
+    valid_indices = valid.index.tolist()
+    n = len(valid_indices)
+
+    # 3) Prepare positional rotation series and a single global counter
+    rotations = pd.Series(0, index=range(n), dtype=int)
+    global_rotation = 0
+    i = 0
+
+    # 4) Walk through valid flights, closing or abandoning loops immediately
+    while i < n:
+        start_dep = valid.iloc[i][dep_col]
+        current_rot = global_rotation + 1
+
+        loop_positions = [i]
+        last_arr = valid.iloc[i][arr_col]
+        j = i + 1
+
+        # Continue as long as next departure matches the last arrival
+        while j < n and valid.iloc[j][dep_col] == last_arr:
+            loop_positions.append(j)
+            last_arr = valid.iloc[j][arr_col]
+            if last_arr == start_dep:
+                # closed this loop
+                break
+            j += 1
+
+        # Assign the same rotation number to all collected legs
+        for pos in loop_positions:
+            rotations.at[pos] = current_rot
+
+        # Bump the global counter
+        global_rotation = current_rot
+
+        # Advance i:
+        # – If we closed the loop (last_arr == start_dep), skip past the closer
+        # – Otherwise (chain‐break), abandon immediately and start at j
+        if j < n and last_arr == start_dep:
+            i = j + 1
+        else:
+            i = j
+
+    # 5) Map back into the original DataFrame
+    df['Rotation'] = 0
+    for pos, orig_idx in enumerate(valid_indices):
+        df.loc[orig_idx, 'Rotation'] = rotations.at[pos]
+
+    return df
 
 
 
@@ -79,7 +146,9 @@ def process_pdf_folder(date_folder: str):
     Processes all PDFs in the specified date folder (format: DD-MM-YY),
     saves a single Excel file, appends to local log, and moves the folder.
     """
+
     folder_path = PROCESSING / date_folder
+    print(folder_path)
     if not folder_path.exists():
         raise FileNotFoundError(f"No such processing folder: {folder_path}")
 
@@ -98,13 +167,14 @@ def process_pdf_folder(date_folder: str):
 
     # Write to Excel
     df = pd.DataFrame(extracted_data)
+    df = assign_rotations(df)
     excel_path = folder_path / "combined_data.xlsx"
+    df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
     df.to_excel(excel_path, index=False)
 
     # Append to local log file
     local_log = folder_path / "processing_log.log"
-    # if not local_log.exists():
-    #     raise FileNotFoundError(f"Log file not found in folder: {local_log}")
+    local_log.parent.mkdir(parents=True, exist_ok=True)
 
 
     with local_log.open("a") as log:
@@ -115,13 +185,14 @@ def process_pdf_folder(date_folder: str):
     shutil.move(str(folder_path), str(dest_path))
     print(f"Folder {folder_path.name} moved to {dest_path}")
 
-    return dest_path
+
+# def main():
+#     move_multiple_files('9H-SLI')
+#     process_pdf_folder(TODAY_STR)
+
+# if __name__ == "__main__":
+#     main()
+
+    
 
 
-if __name__ == "__main__":
-    files_to_move = [
-        ("9H-SLE005382.pdf", "9H-SLE"),
-        ("9H-SLD004310.pdf", "9H-SLD"),
-    ]
-    move_multiple_files(files_to_move)
-    process_pdf_folder(TODAY_STR)

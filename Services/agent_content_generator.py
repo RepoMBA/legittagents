@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 import random
 from agent_keyword_generator import generate_keys
 
-generate_keys()
+# generate_keys()
 
 load_dotenv()
 
@@ -38,6 +38,12 @@ DENSITY_MAX    = 0.03
 WORD_COUNT_MIN = 400
 WORD_COUNT_MAX = 500
 
+SHARED_DRIVE_ID        = os.getenv("SHARED_DRIVE_ID")
+DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
+LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
+if SHARED_DRIVE_ID:
+    LIST_KWARGS.update({"driveId": SHARED_DRIVE_ID, "corpora": "drive"})
+
 creds = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE,
     scopes=DRIVE_SCOPE
@@ -49,6 +55,12 @@ date_slug = datetime.now().strftime("%d-%m-%y")
 
 # === HELPERS ===
 
+DEBUG = True
+
+def log(msg: str):
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
+
 def generate_filename(kw: str, platform: str = "", ext: str = ".txt") -> str:
     kw_slug = kw.replace(" ", "-").lower()
     platform_ = '' if platform == '' else platform+'_'
@@ -57,7 +69,9 @@ def generate_filename(kw: str, platform: str = "", ext: str = ".txt") -> str:
 def load_top_keywords(n=3):
     with open(KEYWORDS_FILE) as f:
         data = json.load(f)
-    return [entry["keyword"] for entry in data[:n]]
+    keywords = [entry["keyword"] for entry in data[:n]]
+    log(f"Loaded top {n} keywords: {keywords}")
+    return keywords
 
 def keyword_density(text: str, keyword: str) -> float:
     words = re.findall(r"\\w+", text.lower())
@@ -73,7 +87,7 @@ def build_prompt(keyword: str) -> str:
         • A Title
         • An intro (100-150 words) setting the scene and pain points
         • 4-6 sections (headings, ~100-180 words each) each with:\n"
-            - An actionable tip tied to “{keyword}”\n"
+            - An actionable tip tied to "{keyword}"\n"
             - How to use Legitt AI to implement that tip\n"
 
         • A mid-body CTA: Try Legitt AI in your free demo today: https://legittai.com/demo
@@ -94,6 +108,7 @@ def generate_blog(prompt):
         temperature=0.7,
         max_tokens=700
     )
+    log("Blog article generated via OpenAI")
     return resp.choices[0].message.content.strip()
 
 def adjust_for_density(text: str, keyword: str, prompt: str) -> str:
@@ -109,20 +124,28 @@ def ensure_drive_folder(name: str, parent_id: str = None) -> str:
     query = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder'"
     if parent_id:
         query += f" and '{parent_id}' in parents"
-    resp = drive.files().list(q=query, fields="files(id, name)").execute()
+    resp = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
     files = resp.get("files", [])
     if files:
+        log(f"Found existing Drive folder '{name}' (id={files[0]['id']})")
         return files[0]["id"]
     metadata = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
     if parent_id:
         metadata["parents"] = [parent_id]
-    folder = drive.files().create(body=metadata, fields="id").execute()
+    folder = drive.files().create(body=metadata, fields="id", **DRIVE_KWARGS).execute()
+    log(f"Created Drive folder '{name}' (id={folder['id']}) under parent {parent_id}")
     return folder["id"]
 
 def upload_to_drive(file_path: str, folder_id: str):
     file_metadata = {"name": os.path.basename(file_path), "parents": [folder_id]}
     media = MediaFileUpload(file_path, mimetype="text/plain")
-    file = drive.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    file = drive.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id",
+        **DRIVE_KWARGS
+    ).execute()
+    log(f"Uploaded '{file_path}' to Drive folder {folder_id} (file id={file['id']})")
     return file["id"]
 
 def generate_summary(text: str, platform: str) -> str:
@@ -170,11 +193,12 @@ def generate_summary(text: str, platform: str) -> str:
         max_tokens = 500 if platform == 'linkedin' else 200,
         temperature=0.7,
     )
+    log(f"Generated {platform} summary")
     return response.choices[0].message.content.strip()
 
 def update_excel(metadata: dict):
     query = f"name = '{EXCEL_NAME}' and '{DRIVE_FOLDER_ID}' in parents"
-    result = drive.files().list(q=query, fields="files(id, name)").execute()
+    result = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
     files = result.get("files", [])
 
     if files:
@@ -188,7 +212,7 @@ def update_excel(metadata: dict):
 
         df = pd.read_excel(EXCEL_PATH)
     else:
-        df = pd.DataFrame(columns=["filename", "date_generated", "posted_on_medium", "posted_on_twitter", "posted_on_linkedin", "medium_url"])
+        df = pd.DataFrame(columns=["filename", "date_generated", "posted_on_medium", "posted_on_twitter", "posted_on_linkedin"b])
         file_id = None
 
     df = pd.concat([df, pd.DataFrame([metadata])], ignore_index=True)
@@ -196,12 +220,22 @@ def update_excel(metadata: dict):
 
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if file_id:
-        drive.files().update(fileId=file_id, media_body=media).execute()
+        drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
     else:
         file_metadata = {"name": EXCEL_NAME, "parents": [DRIVE_FOLDER_ID]}
-        drive.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        drive.files().create(body=file_metadata, media_body=media, fields="id", **DRIVE_KWARGS).execute()
+    log("Excel file updated on Drive")
 
 def main():
+    # --- Health check: verify Google Drive API connectivity ---
+    try:
+        drive.about().get(fields="user").execute()
+        print("[INFO] Google Drive API connection verified.")
+    except Exception as e:
+        print(f"[ERROR] Google Drive API connection failed: {e}")
+        raise
+
+    log("Starting content generation run")
     keywords = load_top_keywords(n=3)
     root_folder_id = ensure_drive_folder(today, parent_id=DRIVE_FOLDER_ID)
     folder_ids = {
@@ -210,6 +244,7 @@ def main():
     }
 
     for kw in keywords:
+        log(f"Processing keyword '{kw}'")
         prompt = build_prompt(kw)
         blog = generate_blog(prompt)
         blog = adjust_for_density(blog, kw, prompt)
@@ -219,6 +254,7 @@ def main():
         with open(fpath, "w", encoding="utf-8") as f:
             f.write(blog)
         upload_to_drive(fpath, folder_ids["medium"])
+        log(f"Uploaded blog article for '{kw}'")
 
         for platform in ["twitter", "linkedin"]:
             summary = generate_summary(blog, platform)
@@ -228,6 +264,7 @@ def main():
             with open(sum_path, "w", encoding="utf-8") as f:
                 f.write(summary)
             upload_to_drive(sum_path, folder_ids[platform])
+            log(f"Uploaded {platform} summary for '{kw}'")
 
         update_excel({
             "filename": generate_filename(kw, platform=""),
@@ -236,6 +273,8 @@ def main():
             "posted_on_twitter": False,
             "posted_on_linkedin": False,
         })
+        log(f"Metadata recorded for '{kw}' in Excel")
 
 if __name__ == "__main__":
     main()
+
