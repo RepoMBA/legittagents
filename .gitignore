@@ -15,3 +15,4 @@ Services/__pycache__
 Utils/.ipynb_checkpoints
 Utils/file_mover.ipynb
 .DS_Store
+*.pyc
