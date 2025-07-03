@@ -13,32 +13,45 @@ from googleapiclient.http import MediaFileUpload
 from googleapiclient.http import MediaIoBaseDownload
 from dotenv import load_dotenv
 import random
-from agent_keyword_generator import generate_keys
+from typing import Optional
 
-# generate_keys()
 
 load_dotenv()
 
-# === CONFIGURATION ===
-openai.api_key          = os.getenv("OPENAI_API_KEY")
-KEYWORDS_FILE           = os.getenv("KEYWORDS_FILE")
+def getenv_required(name: str) -> str:
+    v: Optional[str] = os.getenv(name)
+    if not v:                         # catches None and empty string
+        raise RuntimeError(f"{name} is not set")
+    return v
 
-SERVICE_ACCOUNT_FILE    = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_FOLDER_ID         = os.getenv("DRIVE_FOLDER_ID")
+# === CONFIGURATION ===
+openai.api_key          = getenv_required("OPENAI_API_KEY")
+KEYWORDS_FILE           = getenv_required("KEYWORDS_FILE")
+
+SERVICE_ACCOUNT_FILE    = getenv_required("GOOGLE_SERVICE_ACCOUNT_JSON")
+DRIVE_FOLDER_ID         = getenv_required("DRIVE_FOLDER_ID")
 DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
 
-DATABASE                = os.getenv("BLOG_CONTENT_DATABASE")
-EXCEL_NAME              = os.getenv("EXCEL_NAME")
+DATABASE                = getenv_required("BLOG_CONTENT_DATABASE")
+EXCEL_NAME              = getenv_required("EXCEL_NAME")
 EXCEL_PATH              = os.path.join(DATABASE, EXCEL_NAME)
 
-DEMO_LINK               = os.getenv("DEMO_LINK")
+# Column schema for the tracking spreadsheet used across all publishing scripts
+EXCEL_COLUMNS = [
+    "filename", "date_generated",
+    "posted_on_medium", "medium_date", "medium_url",
+    "posted_on_twitter", "twitter_date", "twitter_url",
+    "posted_on_linkedin", "linkedin_date", "linkedin_url"
+]
+
+DEMO_LINK               = getenv_required("DEMO_LINK")
 
 DENSITY_MIN    = 0.02
 DENSITY_MAX    = 0.03
 WORD_COUNT_MIN = 400
 WORD_COUNT_MAX = 500
 
-SHARED_DRIVE_ID        = os.getenv("SHARED_DRIVE_ID")
+SHARED_DRIVE_ID        = getenv_required("SHARED_DRIVE_ID")
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -59,7 +72,7 @@ DEBUG = True
 
 def log(msg: str):
     if DEBUG:
-        print(f"[DEBUG] {msg}")
+        print(f"{msg}")
 
 def generate_filename(kw: str, platform: str = "", ext: str = ".txt") -> str:
     kw_slug = kw.replace(" ", "-").lower()
@@ -67,11 +80,39 @@ def generate_filename(kw: str, platform: str = "", ext: str = ".txt") -> str:
     return f"{platform_}{date_slug}_{kw_slug}{ext}"
 
 def load_top_keywords(n=3):
-    with open(KEYWORDS_FILE) as f:
+    """Return up to *n* unused keywords ordered as they appear in the JSON file.
+
+    A keyword is considered unused when its object either lacks the "used" key
+    or that key is set to False. If fewer than *n* unused keywords exist we
+    return as many as available."""
+
+    with open(str(KEYWORDS_FILE)) as f:
         data = json.load(f)
-    keywords = [entry["keyword"] for entry in data[:n]]
-    log(f"Loaded top {n} keywords: {keywords}")
+
+    unused = [e for e in data if not e.get("used")]
+    picked = unused[:n]
+    keywords = [e["keyword"] for e in picked]
+    log(f"Loaded {len(keywords)} unused keyword(s): {keywords}")
     return keywords
+
+def _mark_keyword_used(keyword: str):
+    """Set used:true for *keyword* in the keywords JSON file."""
+    try:
+        with open(str(KEYWORDS_FILE), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        changed = False
+        for entry in data:
+            if entry.get("keyword") == keyword:
+                if not entry.get("used"):
+                    entry["used"] = True
+                    changed = True
+                break
+        if changed:
+            with open(str(KEYWORDS_FILE), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            log(f"Marked keyword '{keyword}' as used in keywords.json")
+    except Exception as e:
+        print(f"[WARN] Failed to mark keyword '{keyword}' as used: {e}")
 
 def keyword_density(text: str, keyword: str) -> float:
     words = re.findall(r"\\w+", text.lower())
@@ -109,7 +150,7 @@ def generate_blog(prompt):
         max_tokens=700
     )
     log("Blog article generated via OpenAI")
-    return resp.choices[0].message.content.strip()
+    return str(resp.choices[0].message.content).strip()
 
 def adjust_for_density(text: str, keyword: str, prompt: str) -> str:
     dens = keyword_density(text, keyword)
@@ -120,7 +161,7 @@ def adjust_for_density(text: str, keyword: str, prompt: str) -> str:
         return generate_blog(prompt + "\n\n" + feedback)
     return text
 
-def ensure_drive_folder(name: str, parent_id: str = None) -> str:
+def ensure_drive_folder(name: str, parent_id: str = '') -> str:
     query = f"name = '{name}' and mimeType = 'application/vnd.google-apps.folder'"
     if parent_id:
         query += f" and '{parent_id}' in parents"
@@ -131,7 +172,7 @@ def ensure_drive_folder(name: str, parent_id: str = None) -> str:
         return files[0]["id"]
     metadata = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
     if parent_id:
-        metadata["parents"] = [parent_id]
+        metadata["parents"] = [parent_id] # type: ignore
     folder = drive.files().create(body=metadata, fields="id", **DRIVE_KWARGS).execute()
     log(f"Created Drive folder '{name}' (id={folder['id']}) under parent {parent_id}")
     return folder["id"]
@@ -152,18 +193,18 @@ def generate_summary(text: str, platform: str) -> str:
     demo_link = DEMO_LINK
     medium_link = "{{medium_link}}"    
     templates = [
-    "{hook}? {feature}. Check out a live preview at {demo}! Read all about it → {article}",
-    "🚀 {hook} ➡️ {feature} (live demo: {demo}) 📖 Details: {article}",
-    "Full breakdown here: {article}. {hook} and discover how {feature}. Try it now: {demo}",
-    "{hook} {feature}! (see it live: {demo}) Dive deeper: {article}",
-    "{hook}. {feature}. Experience it yourself: {demo} — more insights at {article}",
-    "{hook}—{feature}—live demo {demo}—full story {article}",
-    "Try a live demo: {demo}. {hook} {feature}. Learn more here: {article}",
-    "{hook} {feature} (details: {article}). See it in action at {demo}",
-    "#Contracts {hook}! {feature}. Learn how → {article}. See it live: {demo}",
-    "{hook}: {feature} | Demo → {demo} | Read more → {article}",
-    "Discover how {feature} 🤖 in our latest piece ({article}), then try a demo at {demo}",
-    "1️⃣ {hook} 2️⃣ {feature} 3️⃣ See for yourself: {demo} • Full read: {article}"]
+    f"{{hook}}? {{feature}}. Check out a live preview at {demo_link}! Read all about it → {medium_link}",
+    f"🚀 {{hook}} ➡️ {{feature}} (live demo: {demo_link}) 📖 Details: {medium_link}",
+    f"Full breakdown here: {medium_link}. {{hook}} and discover how {{feature}}. Try it now: {demo_link}",
+    f"{{hook}} {{feature}}! (see it live: {demo_link}) Dive deeper: {medium_link}",
+    f"{{hook}}. {{feature}}. Experience it yourself: {demo_link} — more insights at {medium_link}",
+    f"{{hook}}—{{feature}}—live demo {demo_link}—full story {medium_link}",
+    f"Try a live demo: {demo_link}. {{hook}} {{feature}}. Learn more here: {medium_link}",
+    f"{{hook}} {{feature}} (details: {medium_link}). See it in action at {demo_link}",
+    f"#Contracts {{hook}}! {{feature}}. Learn how → {medium_link}. See it live: {demo_link}",
+    f"{{hook}}: {{feature}} | Demo → {demo_link} | Read more → {medium_link}",
+    f"Discover how {{feature}} 🤖 in our latest piece {medium_link}, then try a demo at {demo_link}",
+    f"1️⃣ {{hook}} 2️⃣ {{feature}} 3️⃣ See for yourself: {demo_link} • Full read: {medium_link}"]
 
     if platform == 'twitter':
         template = random.choice(templates)
@@ -193,8 +234,18 @@ def generate_summary(text: str, platform: str) -> str:
         max_tokens = 500 if platform == 'linkedin' else 200,
         temperature=0.7,
     )
+    raw_text = str(response.choices[0].message.content).strip()
+
+    # --- safety net: ensure placeholder is always the exact expected string ---
+    fixed_text = (
+        raw_text
+        .replace("({article})", "{{medium_link}}")
+        .replace("{article}", "{{medium_link}}")
+        .replace("{{article}}", "{{medium_link}}")
+    )
+
     log(f"Generated {platform} summary")
-    return response.choices[0].message.content.strip()
+    return fixed_text
 
 def update_excel(metadata: dict):
     query = f"name = '{EXCEL_NAME}' and '{DRIVE_FOLDER_ID}' in parents"
@@ -212,10 +263,14 @@ def update_excel(metadata: dict):
 
         df = pd.read_excel(EXCEL_PATH)
     else:
-        df = pd.DataFrame(columns=["filename", "date_generated", "posted_on_medium", "posted_on_twitter", "posted_on_linkedin"])
+        # Create a blank DataFrame with the predefined schema
+        df = pd.DataFrame({c: [] for c in EXCEL_COLUMNS})
         file_id = None
 
-    df = pd.concat([df, pd.DataFrame([metadata])], ignore_index=True)
+    # Ensure the incoming metadata matches the expected schema; fill missing columns with None
+    record = {col: metadata.get(col) for col in EXCEL_COLUMNS}
+    df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+
     df.to_excel(EXCEL_PATH, index=False)
 
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -226,7 +281,7 @@ def update_excel(metadata: dict):
         drive.files().create(body=file_metadata, media_body=media, fields="id", **DRIVE_KWARGS).execute()
     log("Excel file updated on Drive")
 
-def main():
+def create_content(keywords: list[str] | None = None) -> dict:
     # --- Health check: verify Google Drive API connectivity ---
     try:
         drive.about().get(fields="user").execute()
@@ -236,12 +291,20 @@ def main():
         raise
 
     log("Starting content generation run")
-    keywords = load_top_keywords(n=1) # TODO: change to 3
+    if keywords is None or not keywords:
+        keywords = load_top_keywords(n=1)  # default behaviour
+
+    # ensure we have a list (even if caller passed a single string)
+    if isinstance(keywords, str):
+        keywords = [keywords]
+
     root_folder_id = ensure_drive_folder(today, parent_id=DRIVE_FOLDER_ID)
     folder_ids = {
         p: ensure_drive_folder(p, parent_id=root_folder_id)
         for p in ["medium", "twitter", "linkedin"]
     }
+
+    summaries: list[dict] = []
 
     for kw in keywords:
         log(f"Processing keyword '{kw}'")
@@ -257,12 +320,12 @@ def main():
         log(f"Uploaded blog article for '{kw}'")
 
         for platform in ["twitter", "linkedin"]:
-            summary = generate_summary(blog, platform)
+            summary_text = generate_summary(blog, platform)
             sum_fname = generate_filename(kw, platform=platform)
             sum_path = os.path.join(DATABASE, platform, sum_fname)
             os.makedirs(os.path.dirname(sum_path), exist_ok=True)
             with open(sum_path, "w", encoding="utf-8") as f:
-                f.write(summary)
+                f.write(summary_text)
             upload_to_drive(sum_path, folder_ids[platform])
             log(f"Uploaded {platform} summary for '{kw}'")
 
@@ -274,6 +337,26 @@ def main():
             "posted_on_linkedin": False,
         })
         log(f"Metadata recorded for '{kw}' in Excel")
+
+        # Mark keyword as used in keywords.json so UI hides/flags it next time
+        _mark_keyword_used(kw)
+
+        summaries.append({
+            "keyword": kw,
+            "medium_file": fname,
+            "twitter_file": generate_filename(kw, platform="twitter"),
+            "linkedin_file": generate_filename(kw, platform="linkedin"),
+        })
+
+    log(f"status: success, keywords_processed: {len(summaries)}, details: {summaries}")
+    return {
+        "status": "success",
+        "keywords_processed": len(summaries),
+        "details": summaries,
+    }
+
+def main():
+    create_content()
 
 if __name__ == "__main__":
     main()

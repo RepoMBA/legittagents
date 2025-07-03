@@ -7,6 +7,7 @@ import json
 import os
 from flask import Flask, request, redirect
 import webbrowser
+import threading
 
 from dotenv import load_dotenv
 
@@ -19,34 +20,39 @@ def make_code_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────
-TOKEN_FILE    = os.getenv("TWITTER_TOKEN_FILE")
-LOCAL_SERVER = os.getenv("LOCAL_SERVER")
+CREDENTIALS_FILE    = os.getenv("CREDENTIALS_FILE")
+PORT = 8000
 STATE         = secrets.token_urlsafe(16)
-if not os.path.exists(TOKEN_FILE):
-    raise FileNotFoundError(f"No such file: {TOKEN_FILE}")
+if not os.path.exists(str(CREDENTIALS_FILE)):
+    raise FileNotFoundError(f"No such file: {CREDENTIALS_FILE}")
 
-with open(TOKEN_FILE) as f:
+with open(str(CREDENTIALS_FILE)) as f:
     creds = json.load(f)
 
-CLIENT_ID     = creds["client_id"]
-CLIENT_SECRET = creds["client_secret"]   # if you’re truly using PKCE you can leave this blank
-REDIRECT_URI  = creds["redirect_url"]
-CODE_VERIFIER = creds["verifier"]
+user = creds["users"][0]
+twitter_credentials = user["twitter"]
+
+CLIENT_ID     = twitter_credentials["client_id"]
+CLIENT_SECRET = twitter_credentials["client_secret"]   # if you're truly using PKCE you can leave this blank
+REDIRECT_URL  = twitter_credentials["redirect_url"]
+CODE_VERIFIER = twitter_credentials["verifier"]
+SCOPE = twitter_credentials["scope"]
 CODE_CHALLENGE= make_code_challenge(CODE_VERIFIER)
-SCOPE = creds["scope"]
+TWITTER_LOCAL_SERVER = twitter_credentials["local_server"]
+
 
 # ──────────────────────────────────────────────────────────────────────────
 
-app = Flask(__name__)
+flaskApp = Flask(__name__)
 
 
-@app.route('/')
+@flaskApp.route('/')
 def index():
     # Redirect user to X.com for authorization
     params = {
         'response_type':       'code',
         'client_id':           CLIENT_ID,
-        'redirect_uri':        REDIRECT_URI,
+        'redirect_uri':        REDIRECT_URL,
         'scope':               SCOPE,
         'state':               STATE,
         'code_challenge':      CODE_CHALLENGE,
@@ -59,7 +65,7 @@ def index():
     auth_url = f"https://x.com/i/oauth2/authorize?{params_str}"
     return redirect(auth_url)
 
-@app.route('/auth/twitter/callback')
+@flaskApp.route('/auth/twitter/callback')
 def callback():
     error = request.args.get('error')
     if error:
@@ -74,7 +80,7 @@ def callback():
     data = {
         'grant_type':    'authorization_code',
         'code':          code,
-        'redirect_uri':  REDIRECT_URI,
+        'redirect_uri':  REDIRECT_URL,
         'code_verifier': CODE_VERIFIER,
         'client_id':     CLIENT_ID,
     }
@@ -89,22 +95,55 @@ def callback():
         print("Body:", resp.text)
 
     token_json = resp.json()
-    # Save token to file
+
+    # Guard against missing access token to prevent KeyError
+    if "access_token" not in token_json:
+        # Return detailed error information to aid debugging
+        return (
+            f"Failed to retrieve access token. Response from Twitter: {token_json}",
+            400,
+        )
+
+    # Save token to file only when the access token is present
     creds.update({
         "access_token": token_json["access_token"],
-        "scope": token_json["scope"],
+        "scope": token_json.get("scope", ""),
     })
 
-    with open(TOKEN_FILE, "w") as f:
+    with open(str(CREDENTIALS_FILE), "w") as f:
         json.dump(creds, f, indent=2)
 
-    return '✅ Authentication successful! Token saved.', 200
+    # Gracefully stop the local dev server so Streamlit can continue
+    shutdown = request.environ.get("werkzeug.server.shutdown")
+    if shutdown:
+        shutdown()
+
+    return "✅ Authentication successful! Token saved. You may close this tab.", 200
+
+def refresh_twitter_token():
+    # Ensure directory exists for token file
+    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
+
+    # Launch Flask in a background thread so Streamlit doesn't block
+    threading.Thread(
+        target=lambda: flaskApp.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False),
+        daemon=True,
+    ).start()
+
+    # Open browser to kick-off OAuth flow (root "/" route redirects to X.com)
+    webbrowser.open(str(TWITTER_LOCAL_SERVER))
+    # flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
 
 def main():
-    # print(f"▶️  Open http://localhost:8000 in your browser to start authentication flow.")
-    webbrowser.open(LOCAL_SERVER)
-    os.makedirs(os.path.dirname(TOKEN_FILE) or '.', exist_ok=True)
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
+
+    # threading.Thread(
+    #     target=lambda: flaskApp.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False),
+    #     daemon=True,
+    # ).start()
+
+    webbrowser.open(str(TWITTER_LOCAL_SERVER))
+    flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
 
 if __name__ == '__main__':
     main()

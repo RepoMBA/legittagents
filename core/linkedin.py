@@ -59,10 +59,6 @@ if SHARED_DRIVE_ID:
 drive_creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=DRIVE_SCOPES)
 drive = build('drive', 'v3', credentials=drive_creds)
 
-with open(TOKEN_FILE) as f:
-        creds = json.load(f)
-# -------------------------------------
-
 def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
 
     for i, segment in enumerate(path_list):
@@ -225,18 +221,20 @@ def ensure_excel_on_drive() -> str:
     print(f"[INFO] Created tracking Excel on Drive (id={file['id']})")
     return file["id"]
 
-def main():
-
+def post_linkedin() -> dict:
     # 2) Find target folder
     platform = 'linkedin'
     unpublished_files = get_unpublished_filenames(platform)
-    print(f"Files posted to Medium but not yet to {platform.capitalize()}:")
+    successes: list[dict] = []
+    failures: list[dict] = []
 
-    x=1
-    for i in unpublished_files:
-        # build the Drive path for LinkedIn
-        print(f"{x}.", i["filename"], end='\n')
-        x+=1
+    if unpublished_files:
+        print(f"Files posted to Medium but not yet to {platform.capitalize()}:")
+        for idx, i in enumerate(unpublished_files, 1):
+            print(f"{idx}. {i['filename']}")
+    else:
+        print("No LinkedIn posts pending.")
+        return {"status": "nothing_to_publish"}
 
     for i in unpublished_files:
         # build the Drive path for LinkedIn
@@ -249,10 +247,17 @@ def main():
         text_lines = raw.decode('utf-8').splitlines()
         processed_lines = [line.replace("{{medium_link}}", medium_url) for line in text_lines]
 
-        token   = creds["access_token"]
-        urn     = creds["author_urn"]
+        # Reload token data for each run to pick up any manual refreshes
+        try:
+            with open(TOKEN_FILE) as _tf:
+                _creds = json.load(_tf)
+                token = _creds["access_token"]
+                urn   = _creds["author_urn"]
+        except Exception as _err:
+            print(f"[ERROR] Could not read LinkedIn token file: {_err}")
+            failures.append({"filename": filename, "error": str(_err)})
+            continue
 
-    
         try:
             result = post_to_linkedin(processed_lines, token, urn)
             post_id = result.get("id", "")
@@ -264,9 +269,20 @@ def main():
                 "linkedin_url": post_url,
             }
             update_existing_entry(filename = filename, updates = updates)
+            successes.append({"filename": filename, "url": post_url})
 
         except Exception as e:
             print("❌ Failed to post to LinkedIn:", e)
+            failures.append({"filename": filename, "error": str(e)})
+
+    return {
+        "status": "done",
+        "published": successes,
+        "failed": failures,
+    }
+
+def main():
+    post_linkedin()
 
 if __name__ == "__main__":
     main()
