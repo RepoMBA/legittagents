@@ -211,7 +211,7 @@ def update_existing_entry(filename: str, updates: dict):
     # Save and upload
     df.to_excel(EXCEL_PATH, index=False)
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    drive.files().update(fileId=file_id, media_body=media).execute()
+    drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
 
 def main():
 
