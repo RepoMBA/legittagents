@@ -1,8 +1,8 @@
 import asyncio
-from fastmcp import Client
+from fastmcp import Client #type: ignore
 
 # Instantiate the client with the path to the server script
-client = Client("mcp_server.py")
+client = Client("./ACI/mcp_server.py")
 
 async def async_trigger_processing(reg_no: str, filenames: list):
     # Calls the 'process_upload' tool on the MCP server
@@ -12,4 +12,4 @@ async def async_trigger_processing(reg_no: str, filenames: list):
 
 def trigger_processing(reg_no: str, filenames: list):
     # Synchronous wrapper for compatibility
-    return asyncio.run(async_trigger_processing(reg_no, filenames)) 
+    return asyncio.run(async_trigger_processing(reg_no, filenames))

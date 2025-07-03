@@ -559,31 +559,45 @@
             procFolder = pr.processed_folder;
           } catch {}
 
+          if (procFolder && procFolder.startsWith("/")) {
+            const idx = procFolder.indexOf("/Database/");
+            if (idx !== -1) procFolder = procFolder.slice(idx + 10);
+          }
+
           if (procFolder) {
             const logResp = await fetch(`http://127.0.0.1:8000/${procFolder}/processing_log.log`);
             if (logResp.ok) {
               logsDiv.textContent += (await logResp.text()).trim() + '\n';
             } else {
-              logsDiv.textContent += `(failed to load processing.log)\n`;
+              logsDiv.textContent += `(failed to load processing_log)\n`;
             }
           } else {
-            logsDiv.textContent += '(no processing.log path found)\n';
+            logsDiv.textContent += '(no processing_log found)\n';
           }
 
           logsDiv.scrollTop = logsDiv.scrollHeight;
 
-          if (procFolder) {
+          let excelPath = data.excel_file;
+
+          if (!excelPath && data.processing_result && data.processing_result.length) {
+            // legacy fallback: parse from agent text
             const m = data.processing_result[0].text.match(/"excel_file"\s*:\s*"([^"]+)"/);
-            if (m) {
-              const excelPath = m[1];
-              downloadLink.href = `http://127.0.0.1:8000/${excelPath}`;
-              downloadLink.download = excelPath.split('/').pop();
-              downloadLink.classList.add('enabled-link');
-            }
+            excelPath = m && m[1];
+          }
+
+          if (excelPath) {
+            downloadLink.href = `http://127.0.0.1:8000/${excelPath}`;
+            downloadLink.download = excelPath.split('/').pop();
+            downloadLink.classList.add('enabled-link');
           }
 
           updateProgress('step-processing', 'completed');
           updateProgress('step-complete', 'completed');
+
+          // 🔄 Reset UI state so subsequent uploads don't resend previous files
+          selectedFiles = [];
+          renderFileList();
+          document.getElementById('file-list').style.display = 'flex';
 
         } catch (err) {
           logsDiv.textContent = '⚠️ Network/server error: ' + err;

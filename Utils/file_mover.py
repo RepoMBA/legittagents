@@ -27,9 +27,9 @@ def init_directories():
 
 init_directories()
 
-def get_today_folder() -> Path:
-    """Returns the processing folder path for today's date, creating it if necessary."""
-    today_folder = PROCESSING / TODAY_STR
+def get_today_folder(date_str: str = TODAY_STR) -> Path:
+    """Returns the processing folder path for the given date key (YYYYMMDDhhmmss)."""
+    today_folder = PROCESSING / date_str
     today_folder.mkdir(parents=True, exist_ok=True)
     return today_folder
 
@@ -42,7 +42,7 @@ def log_move(filename: str, reg_no: str):
         # log.write(f"{filename} from folder {reg_no} moved to {TODAY_STR} folder on date {DATE_STR}\n")
         log.write(f"{filename} from folder {reg_no} moved to processing folder {TODAY_STR} on date {DATE_STR}\n")
 
-def move_file(filepath: str, reg_no: str):
+def move_file(filepath: str, reg_no: str, date_str: str = TODAY_STR):
     """
     Moves a file from to_be_processed/[REG_NO]/ to processing/[TODAY'S_DATE]/
     and logs the move.
@@ -55,7 +55,7 @@ def move_file(filepath: str, reg_no: str):
     if not src.exists():
         raise FileNotFoundError(f"{src} does not exist.")
 
-    dest_folder = get_today_folder()
+    dest_folder = get_today_folder(date_str)
     # shutil.move(str(src), str(dest_folder / filename))
     print(dest_folder)
     shutil.move(str(src), f"{dest_folder}/{filename}")
@@ -63,24 +63,20 @@ def move_file(filepath: str, reg_no: str):
     log_move(filename, reg_no)
     print(f"Moved {filename} from {reg_no} to {dest_folder}")
 
-def move_multiple_files(reg_no):
-    """
-    Moves multiple files. 
-    file_reg_list: List of tuples like [("fileA.pdf", "123"), ("fileB.pdf", "456")]
-    """
-    folder_path = TO_BE_PROCESSED / reg_no
-    if not folder_path.exists():
-        raise FileNotFoundError(f"No such processing folder: {folder_path}")
+def move_multiple_files(reg_no_list, date_str: str = TODAY_STR, log_callback=None):
+    """Move all PDFs under each reg_no into PROCESSING/date_str."""
+    for reg_no in reg_no_list:
+        folder_path = TO_BE_PROCESSED / reg_no
+        if not folder_path.exists():
+            log_callback and log_callback(f"No such folder: {folder_path}\n")
+            continue
 
-    pdf_files = list(folder_path.glob("*.pdf"))
-    if not pdf_files:
-        raise ValueError("No PDF files found in folder")
-        
-    for filename in pdf_files:
-        try:
-            move_file(filename, reg_no)
-        except Exception as e:
-            print(f"Error moving {filename} from {reg_no}: {e}")
+        for pdf in folder_path.glob("*.pdf"):
+            try:
+                move_file(pdf, reg_no, date_str)
+                log_callback and log_callback(f"Moved {pdf.name} from {reg_no}\n")
+            except Exception as e:
+                log_callback and log_callback(f"Error moving {pdf.name} from {reg_no}: {e}\n")
 
 
 def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
@@ -141,7 +137,7 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
 
 
 
-def process_pdf_folder(date_folder: str):
+def process_pdf_folder(date_folder: str, log_callback=None):
     """
     Processes all PDFs in the specified date folder (format: DD-MM-YY),
     saves a single Excel file, appends to local log, and moves the folder.
@@ -184,6 +180,9 @@ def process_pdf_folder(date_folder: str):
     dest_path = PROCESSED / date_folder
     shutil.move(str(folder_path), str(dest_path))
     print(f"Folder {folder_path.name} moved to {dest_path}")
+    log_callback and log_callback(f"Folder {folder_path.name} moved to {dest_path}\n")
+
+    return dest_path, excel_path
 
 
 # def main():

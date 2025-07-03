@@ -21,12 +21,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+PROJECT_PATH = "./ACI"
+DATABASE_PATH = "./ACI/Database"
+app.mount("/ACI/Database/Processed", StaticFiles(directory=f"{DATABASE_PATH}/Processed"), name="processed")
+app.mount("/ACI/Database/Processing", StaticFiles(directory=f"{DATABASE_PATH}/Processing"), name="processing")
+app.mount("/ACI/static", StaticFiles(directory="./ACI/static"), name="static")
 
-app.mount("/Database/Processed", StaticFiles(directory="Database/Processed"), name="processed")
-app.mount("/Database/Processing", StaticFiles(directory="Database/Processing"), name="processing")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-UPLOAD_DIRECTORY = "./Database/To_Be_Processed"
+UPLOAD_DIRECTORY = f"{DATABASE_PATH}/To_Be_Processed"
 
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
@@ -45,7 +46,7 @@ async def send_log_to_ws(reg_no: str, message: str):
 @app.websocket("/ws/logs/{reg_no}")
 async def websocket_endpoint(websocket: WebSocket, reg_no: str):
     await websocket.accept()
-    log_dir = "./Database/To_Be_Processed/move_logs/"
+    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     # Find the latest log file
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     if not log_files:
@@ -93,7 +94,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     # Read move log (latest by date)
     import glob
     import datetime
-    log_dir = "./Database/To_Be_Processed/move_logs/"
+    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     move_log_content = ""
     if log_files:
@@ -134,7 +135,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 def download_latest_move_log():
     import glob
     import os
-    log_dir = "./Database/To_Be_Processed/move_logs/"
+    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     if not log_files:
         return {"error": "No move log file found yet. This is normal for the first upload of the day."}
@@ -145,7 +146,7 @@ def download_latest_move_log():
 def download_processing_log(folder: str = ""):
     import glob
     import os
-    processed_dir = "./Database/Processed/"
+    processed_dir = f"{DATABASE_PATH}/Processed/"
     if folder:
         log_path = os.path.join(processed_dir, folder, "processing_log.log")
         if not os.path.exists(log_path):
@@ -162,7 +163,7 @@ def download_processing_log(folder: str = ""):
 @app.get("/download/excel")
 def download_excel(folder: str = ""):
     import os
-    processed_dir = "./Database/Processed/"
+    processed_dir = f"{DATABASE_PATH}/Processed/"
     if folder:
         excel_path = os.path.join(processed_dir, folder, "combined_data.xlsx")
         if not os.path.exists(excel_path):
@@ -178,11 +179,11 @@ def download_excel(folder: str = ""):
 
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse("static/favicon.ico")
+    return FileResponse(f"{PROJECT_PATH}/static/favicon.ico")
 
 @app.get("/")
 def serve_frontend():
-    return FileResponse("frontend.html")
+    return FileResponse(f"{PROJECT_PATH}/frontend.html")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
