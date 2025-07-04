@@ -16,4 +16,5 @@ Utils/file_mover.ipynb
 *.ipynb_checkpoints
 *.ipynb
 *.pyc
+__pycache__/
 
