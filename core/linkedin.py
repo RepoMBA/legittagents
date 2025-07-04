@@ -1,6 +1,10 @@
+# Standard libs
 import os
 import time
 from datetime import datetime
+from typing import List, Dict, Any, Optional
+
+# External deps
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -9,48 +13,26 @@ import pandas as pd
 import requests
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
-from typing import List, Dict, Any, Optional
-import json
 
-from typing import Optional
+from core.credentials import google, global_cfg, user as _user_creds
+gcreds = google()                 # → plain dict
+global_cfg = global_cfg()
 
-def getenv_required(name: str) -> str:
-    v: Optional[str] = os.getenv(name)
-    if not v:                         # catches None and empty string
-        raise RuntimeError(f"{name} is not set")
-    return v
 # Load environment variables
 load_dotenv()
 
-# ---------- CONFIG ----------
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_SCOPES: list[str] = [os.getenv("DRIVE_SCOPE") or "https://www.googleapis.com/auth/drive"]
-FOLDER_ID: str = getenv_required("DRIVE_FOLDER_ID")
-GOOGLE_EMAIL         = os.getenv("GOOGLE_EMAIL")
-GOOGLE_PASSWORD      = os.getenv("GOOGLE_PASSWORD")
+# ---------- Global Configuration ----------
 
-TOKEN_FILE: str = os.getenv("LINKEDIN_TOKEN_FILE") or ""
-if not TOKEN_FILE:
-    raise RuntimeError("LINKEDIN_TOKEN_FILE env var missing")
-if not os.path.exists(TOKEN_FILE):
-    raise FileNotFoundError(f"LinkedIn token file not found: {TOKEN_FILE}")
+DATABASE: str = global_cfg["blog_content_database"]
+EXCEL_NAME: str = global_cfg["excel_name"]
 
-DATABASE: str = os.getenv("BLOG_CONTENT_DATABASE") or "./Database"
-EXCEL_NAME: str = os.getenv("EXCEL_NAME") or "published_articles.xlsx"
-EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
-
-# ensure directory exists
-os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
-
-# Default columns when creating a blank tracking file
-EXCEL_COLUMNS = [
-    "filename", "date_generated",
-    "posted_on_medium", "medium_date", "medium_url",
-    "posted_on_twitter", "twitter_date", "twitter_url",
-    "posted_on_linkedin", "linkedin_date", "linkedin_url"
-]
-
-SHARED_DRIVE_ID: str = os.getenv("SHARED_DRIVE_ID") or ""
+# ---------- Drive Configuration ----------
+SERVICE_ACCOUNT_FILE = gcreds["service_account_json"]
+DRIVE_SCOPES: list[str] = [gcreds["drive_scope"]]
+GOOGLE_EMAIL         = gcreds["google_email"]
+GOOGLE_PASSWORD      = gcreds["google_password"]
+FOLDER_ID: str = gcreds["drive_folder_id"]
+SHARED_DRIVE_ID: str = gcreds["shared_drive_id"]
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -58,6 +40,17 @@ if SHARED_DRIVE_ID:
 
 drive_creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=DRIVE_SCOPES)
 drive = build('drive', 'v3', credentials=drive_creds)
+
+# ---------- Excel Configuration ----------
+EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
+os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
+EXCEL_COLUMNS = [
+    "filename", "date_generated",
+    "posted_on_medium", "medium_date", "medium_url",
+    "posted_on_twitter", "twitter_date", "twitter_url",
+    "posted_on_linkedin", "linkedin_date", "linkedin_url"
+]
+
 
 def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
 
@@ -119,6 +112,7 @@ def get_unpublished_filenames(platform):
     # return as list of dicts: [{"filename": ..., "medium_url": ...}, ...]
     return result_df.to_dict(orient="records")
 
+# ---------- LinkedIn credentials (per ACTIVE_USER) ----------
 
 def post_to_linkedin(
     text_lines: List[str],
@@ -205,6 +199,7 @@ def update_existing_entry(filename: str, updates: dict):
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
 
+
 def ensure_excel_on_drive() -> str:
     """Return file id of tracking Excel, creating it if missing."""
     query = f"name = '{EXCEL_NAME}' and '{FOLDER_ID}' in parents"
@@ -247,15 +242,18 @@ def post_linkedin() -> dict:
         text_lines = raw.decode('utf-8').splitlines()
         processed_lines = [line.replace("{{medium_link}}", medium_url) for line in text_lines]
 
-        # Reload token data for each run to pick up any manual refreshes
-        try:
-            with open(TOKEN_FILE) as _tf:
-                _creds = json.load(_tf)
-                token = _creds["access_token"]
-                urn   = _creds["author_urn"]
-        except Exception as _err:
-            print(f"[ERROR] Could not read LinkedIn token file: {_err}")
-            failures.append({"filename": filename, "error": str(_err)})
+        # -------------------------------------------------
+        # LinkedIn credentials (per ACTIVE_USER)
+        # -------------------------------------------------
+        _li_creds = _user_creds().get("linkedin", {})
+        _ACCESS_TOKEN: Optional[str] = _li_creds.get("access_token")
+        _AUTHOR_URN: Optional[str] = _li_creds.get("author_urn")
+
+        token = _ACCESS_TOKEN
+        urn = _AUTHOR_URN
+        if not token or not urn:
+            print("[ERROR] Missing LinkedIn token or author URN in credentials JSON")
+            failures.append({"filename": filename, "error": "missing_credentials"})
             continue
 
         try:

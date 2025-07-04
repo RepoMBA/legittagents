@@ -5,3 +5,4 @@ from .linkedin import post_linkedin
 from .twitter  import post_twitter
 from .twitter_token   import refresh_twitter_token
 from .linkedin_token  import refresh_linkedin_token
+from .credentials import global_cfg

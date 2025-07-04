@@ -14,9 +14,14 @@ from googleapiclient.http import MediaIoBaseDownload
 from dotenv import load_dotenv
 import random
 from typing import Optional
+from core.credentials import google, global_cfg
 
+gcreds      = google()
+global_cfg  = global_cfg()
 
 load_dotenv()
+
+# ---------- Helper Functions ----------
 
 def getenv_required(name: str) -> str:
     v: Optional[str] = os.getenv(name)
@@ -24,16 +29,12 @@ def getenv_required(name: str) -> str:
         raise RuntimeError(f"{name} is not set")
     return v
 
-# === CONFIGURATION ===
-openai.api_key          = getenv_required("OPENAI_API_KEY")
-KEYWORDS_FILE           = getenv_required("KEYWORDS_FILE")
-
-SERVICE_ACCOUNT_FILE    = getenv_required("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_FOLDER_ID         = getenv_required("DRIVE_FOLDER_ID")
-DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
-
-DATABASE                = getenv_required("BLOG_CONTENT_DATABASE")
-EXCEL_NAME              = getenv_required("EXCEL_NAME")
+# ---------- Global Configuration ----------
+openai.api_key          = os.getenv("OPENAI_API_KEY")
+KEYWORDS_FILE           = global_cfg["keywords_file"]
+DATABASE                = global_cfg["blog_content_database"]
+EXCEL_NAME              = global_cfg["excel_name"]
+DEMO_LINK               = global_cfg["demo_link"]
 EXCEL_PATH              = os.path.join(DATABASE, EXCEL_NAME)
 
 # Column schema for the tracking spreadsheet used across all publishing scripts
@@ -44,14 +45,18 @@ EXCEL_COLUMNS = [
     "posted_on_linkedin", "linkedin_date", "linkedin_url"
 ]
 
-DEMO_LINK               = getenv_required("DEMO_LINK")
-
 DENSITY_MIN    = 0.02
 DENSITY_MAX    = 0.03
 WORD_COUNT_MIN = 400
 WORD_COUNT_MAX = 500
 
-SHARED_DRIVE_ID        = getenv_required("SHARED_DRIVE_ID")
+# ---------- Drive Configuration ----------
+
+SERVICE_ACCOUNT_FILE    = gcreds["service_account_json"]
+DRIVE_FOLDER_ID         = gcreds["drive_folder_id"]
+DRIVE_SCOPE             = [gcreds["drive_scope"]]
+SHARED_DRIVE_ID         = gcreds["shared_drive_id"]
+
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -66,7 +71,7 @@ today = datetime.now().strftime("%d-%m-%y")  # e.g. "16-Jun-2025"
 excel_date = datetime.now().strftime("%Y-%m-%d")
 date_slug = datetime.now().strftime("%d-%m-%y")
 
-# === HELPERS ===
+# ---------- Helper Functions ----------
 
 DEBUG = True
 

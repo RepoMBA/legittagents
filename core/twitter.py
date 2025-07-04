@@ -1,19 +1,21 @@
 import requests
-from typing import List, Dict, Any
-import json
+from typing import List, Dict, Any, Optional
 import os
 import time
 from datetime import datetime
+
 from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import pandas as pd
-import requests
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
 
-from typing import Optional
+from core.credentials import google, global_cfg, user as _user_creds
+
+gcreds = google()                 # → plain dict
+global_cfg = global_cfg()
 
 def getenv_required(name: str) -> str:
     v: Optional[str] = os.getenv(name)
@@ -23,27 +25,33 @@ def getenv_required(name: str) -> str:
 
 load_dotenv()
 
-# ---------- Configuration ----------
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_SCOPES: list[str] = [os.getenv("DRIVE_SCOPE") or "https://www.googleapis.com/auth/drive"]
-FOLDER_ID: str = getenv_required("DRIVE_FOLDER_ID")
-GOOGLE_EMAIL         = os.getenv("GOOGLE_EMAIL")
-GOOGLE_PASSWORD      = os.getenv("GOOGLE_PASSWORD")
+# ---------- Global Configuration ----------
+DATABASE: str = global_cfg["blog_content_database"]
+EXCEL_NAME: str = global_cfg["excel_name"]
 
-TOKEN_FILE   = getenv_required("TWITTER_TOKEN_FILE")
-DATABASE: str = os.getenv("BLOG_CONTENT_DATABASE") or "./Database"
-EXCEL_NAME: str = os.getenv("EXCEL_NAME") or "published_articles.xlsx"
+# ---------- Drive Configuration ----------
+SERVICE_ACCOUNT_FILE = gcreds["service_account_json"]
+DRIVE_SCOPES: list[str] = [gcreds["drive_scope"]]
+FOLDER_ID: str = gcreds["drive_folder_id"]
+GOOGLE_EMAIL         = gcreds["google_email"]
+GOOGLE_PASSWORD      = gcreds["google_password"]
 
-# ensure directory exists
-EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
-os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
 
-SHARED_DRIVE_ID: str = os.getenv("SHARED_DRIVE_ID") or ""
+SHARED_DRIVE_ID: str = gcreds["shared_drive_id"]
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
     LIST_KWARGS.update({"driveId": SHARED_DRIVE_ID, "corpora": "drive"})
 
+drive_creds = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE,
+    scopes=DRIVE_SCOPES,
+)
+drive = build("drive", "v3", credentials=drive_creds)
+
+# ---------- Excel Configuration ----------
+EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
+os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
 EXCEL_COLUMNS = [
     "filename", "date_generated",
     "posted_on_medium", "medium_date", "medium_url",
@@ -65,17 +73,6 @@ def ensure_excel_on_drive() -> str:
     file = drive.files().create(body=meta, media_body=media, fields="id", **DRIVE_KWARGS).execute()
     print(f"[INFO] Created tracking Excel on Drive (id={file['id']})")
     return file["id"]
-
-# -------------------------------------
-
-# Build Drive client once at import time (safe) – Twitter token will now be
-# loaded dynamically inside post_twitter() so we don't keep stale credentials.
-drive_creds = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE,
-    scopes=DRIVE_SCOPES,
-)
-drive = build("drive", "v3", credentials=drive_creds)
-# -------------------------------------
 
 def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
     for i, segment in enumerate(path_list):
@@ -172,19 +169,20 @@ def update_existing_entry(filename: str, updates: dict):
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
 
+# ---------- Twitter credentials (per ACTIVE_USER) ----------
+_tw_creds = _user_creds().get("twitter", {})
+_BEARER_TOKEN: Optional[str] = _tw_creds.get("access_token")
+_SCREEN_NAME: Optional[str] = _tw_creds.get("screen_name")
+
 def post_twitter() -> dict:
     platform = "twitter"
     print("[INFO] Starting Twitter publishing run…")
 
-    # Load the latest bearer token and screen name fresh at every invocation
-    try:
-        with open(TOKEN_FILE) as _tf:
-            _creds = json.load(_tf)
-            bearer_token = _creds["access_token"]
-            screen_name  = _creds["screen_name"]
-    except Exception as _err:
-        print(f"[ERROR] Could not read Twitter token file: {_err}")
-        return {"status": "error", "error": "token_load_failure", "details": str(_err)}
+    bearer_token = _BEARER_TOKEN
+    screen_name = _SCREEN_NAME
+    if not bearer_token or not screen_name:
+        print("[ERROR] Missing Twitter access token or screen name in credentials JSON")
+        return {"status": "error", "error": "missing_credentials"}
 
     entries = get_unpublished_entries(platform)
 

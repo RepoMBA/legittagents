@@ -3,12 +3,15 @@ import requests
 import urllib.parse
 import secrets
 import hashlib, base64
-import json
-import os
 from flask import Flask, request, redirect
 import webbrowser
 import threading
 
+# Centralised credential access
+from core.credentials import user as _user_creds, save as _save_creds
+
+# Keep dotenv for supplementary vars (e.g. OPENAI_API_KEY) but load AFTER we
+# patched env vars via the credentials module import above.
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,25 +23,19 @@ def make_code_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────
-CREDENTIALS_FILE    = os.getenv("CREDENTIALS_FILE")
 PORT = 8000
-STATE         = secrets.token_urlsafe(16)
-if not os.path.exists(str(CREDENTIALS_FILE)):
-    raise FileNotFoundError(f"No such file: {CREDENTIALS_FILE}")
+STATE = secrets.token_urlsafe(16)
 
-with open(str(CREDENTIALS_FILE)) as f:
-    creds = json.load(f)
-
-user = creds["users"][0]
-twitter_credentials = user["twitter"]
+# Resolve credentials for the active user (defaults to the first user key)
+twitter_credentials = _user_creds().get("twitter", {})
 
 CLIENT_ID     = twitter_credentials["client_id"]
 CLIENT_SECRET = twitter_credentials["client_secret"]   # if you're truly using PKCE you can leave this blank
 REDIRECT_URL  = twitter_credentials["redirect_url"]
 CODE_VERIFIER = twitter_credentials["verifier"]
 SCOPE = twitter_credentials["scope"]
-CODE_CHALLENGE= make_code_challenge(CODE_VERIFIER)
-TWITTER_LOCAL_SERVER = twitter_credentials["local_server"]
+CODE_CHALLENGE = make_code_challenge(CODE_VERIFIER)
+TWITTER_LOCAL_SERVER = twitter_credentials.get("local_server", "http://localhost:8000/")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -104,14 +101,10 @@ def callback():
             400,
         )
 
-    # Save token to file only when the access token is present
-    creds.update({
-        "access_token": token_json["access_token"],
-        "scope": token_json.get("scope", ""),
-    })
-
-    with open(str(CREDENTIALS_FILE), "w") as f:
-        json.dump(creds, f, indent=2)
+    # Persist the refreshed token back into the shared credentials JSON
+    twitter_credentials["access_token"] = token_json["access_token"]
+    twitter_credentials["scope"] = token_json.get("scope", "")
+    _save_creds()
 
     # Gracefully stop the local dev server so Streamlit can continue
     shutdown = request.environ.get("werkzeug.server.shutdown")
@@ -121,9 +114,6 @@ def callback():
     return "✅ Authentication successful! Token saved. You may close this tab.", 200
 
 def refresh_twitter_token():
-    # Ensure directory exists for token file
-    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
-
     # Launch Flask in a background thread so Streamlit doesn't block
     threading.Thread(
         target=lambda: flaskApp.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False),
@@ -135,13 +125,6 @@ def refresh_twitter_token():
     # flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
 
 def main():
-    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
-
-    # threading.Thread(
-    #     target=lambda: flaskApp.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False),
-    #     daemon=True,
-    # ).start()
-
     webbrowser.open(str(TWITTER_LOCAL_SERVER))
     flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
 

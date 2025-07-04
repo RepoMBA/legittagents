@@ -11,23 +11,26 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
 import random
 from typing import Tuple, cast
+from core.credentials import google, global_cfg
+
+gcreds = google()                 # → plain dict
+global_cfg = global_cfg()
 
 # Load environment variables
 load_dotenv()
 
-# ---------- Configuration ----------
-GOOGLE_EMAIL         = os.getenv("GOOGLE_EMAIL")
-GOOGLE_PASSWORD      = os.getenv("GOOGLE_PASSWORD")
+# ---------- Global Configuration ----------
 
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
-DRIVE_FOLDER_ID: str = os.getenv("DRIVE_FOLDER_ID") or ""
+DATABASE: str = global_cfg["blog_content_database"]
+EXCEL_NAME: str = global_cfg["excel_name"]
 
-DATABASE: str = os.getenv("BLOG_CONTENT_DATABASE") or "./Database"
-EXCEL_NAME: str = os.getenv("EXCEL_NAME") or "published_articles.xlsx"
-EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
-
-SHARED_DRIVE_ID        = os.getenv("SHARED_DRIVE_ID")
+# ---------- Drive Configuration ----------
+GOOGLE_EMAIL         = gcreds["google_email"]
+GOOGLE_PASSWORD      = gcreds["google_password"]
+SERVICE_ACCOUNT_FILE = gcreds["service_account_json"]
+DRIVE_SCOPE             = [gcreds["drive_scope"]]
+DRIVE_FOLDER_ID: str = gcreds["drive_folder_id"]
+SHARED_DRIVE_ID        = gcreds["shared_drive_id"]
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -38,12 +41,10 @@ creds = service_account.Credentials.from_service_account_file(
     scopes=DRIVE_SCOPE
 )
 drive = build("drive", "v3", credentials=creds)
-# -------------------------------------
 
-# Ensure the local Excel directory exists
+# ---------- Excel Configuration ----------
+EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
 os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
-
-# Columns to use when bootstrapping a brand-new sheet
 EXCEL_COLUMNS = [
     "filename", "date_generated",
     "posted_on_medium", "medium_date", "medium_url",
@@ -308,7 +309,7 @@ def publish_medium(filename: str | None = None) -> dict:
     }
 
 def main():
-    publish_medium()
+    print(get_unpublished_filenames())
 
 
 if __name__ == "__main__":

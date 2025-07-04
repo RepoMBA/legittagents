@@ -22,6 +22,10 @@ import threading
 warnings.simplefilter("ignore", FutureWarning)
 load_dotenv()
 
+from core.credentials import global_cfg
+
+global_cfg = global_cfg()
+
 # ---------------------------------------------------------------------------
 # Compatibility patch: pytrends < 5.0 still passes `method_whitelist` to
 # urllib3 Retry(..).  urllib3 2.0 renamed that argument to `allowed_methods`.
@@ -46,11 +50,12 @@ except Exception:  # pragma: no cover – best-effort patch
     pass
 
 # === CONFIG ===
-SEED_FILE = str(os.getenv("SEED_FILE"))
+SEED_FILE = str(global_cfg["seed_file"])
 with open(SEED_FILE, "r", encoding="utf-8") as f:
     SEED_KEYWORDS = json.load(f)
-openai.api_key     = os.getenv("OPENAI_API_KEY", "YOUR_KEY_HERE")
-LLM_CANDIDATES_PER = 9
+
+openai.api_key     = os.getenv("OPENAI_API_KEY")
+LLM_CANDIDATES_PER = 7
 # MUST use valid timeframe strings.
 TIMEFRAME          = "today 3-m"    # last 3 months
 GEO                = "US"
@@ -58,11 +63,11 @@ HL                 = "en-US"
 TZ                 = 360
 MIN_AVG_INTEREST   = 1
 TOP_N              = 30
-KEYWORDS_JSON        = str(os.getenv("KEYWORDS_FILE"))
+KEYWORDS_JSON        = str(global_cfg["keywords_file"])
 
 # Batch-control: pause after every N seed words processed
 SEED_BATCH_SIZE   = 8   # process this many seeds concurrently
-SEED_PAUSE_SEC    = int(os.getenv("SEED_BATCH_PAUSE", "60"))  # long break duration
+SEED_PAUSE_SEC    = 60  # long break duration
 
 # === HELPERS ===
 
