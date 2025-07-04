@@ -17,4 +17,5 @@ Utils/file_mover.ipynb
 *.ipynb
 *.pyc
 __pycache__/
-
+*.log
+*.DS_Store

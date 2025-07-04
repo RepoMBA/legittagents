@@ -86,7 +86,7 @@ def users() -> Mapping[str, Any]:
 
 
 def _default_user_id() -> str:
-    return os.getenv("ACTIVE_USER") or next(iter(users().keys()))
+    return "user" or next(iter(users().keys()))
 
 
 def user(user_id: str | None = None) -> MutableMapping[str, Any]:
@@ -152,9 +152,9 @@ def save() -> None:
 
 if __name__ == "__main__":
     # print(users())
-    # print(_default_user_id())
-    print('medium', user()['medium'], "\n")
-    print('linkedin', user()['linkedin'], "\n")
-    print('twitter', user()['twitter'], "\n")
-    print('google', google(), "\n")
+    print(_default_user_id())
+    print('medium', user()['medium'], "\n")    
+    print('medium', user('shresth')['medium'], "\n")    
+    print(users().keys())
+    
     # print('global_cfg', global_cfg())   
