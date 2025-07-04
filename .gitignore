@@ -15,5 +15,5 @@ Utils/file_mover.ipynb
 .DS_Store
 *.ipynb_checkpoints
 *.ipynb
-*.py[cod]
-__pycache__/
+*.pyc
+

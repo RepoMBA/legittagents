@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Agent Dashboard for ACI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f4f6fa;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1em;
+    }
+
+    .container {
+      background: #fff;
+      max-width: 720px;
+      width: 100%;
+      border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+      padding: 2em;
+    }
+
+    /*.logo {
+      text-align: center;
+      margin-bottom: 0.5em;
+    }
+
+    .logo img {
+      width: 120px;
+      height: auto;
+    }*/
+
+
+    /*h2 {
+      text-align: center;
+      color: #2c3e50;
+      font-weight: 600;
+      margin-top: 0.2em;
+      margin-bottom: 1.2em;
+    }*/
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin-bottom: 1.2em;
+    }
+
+    .header img {
+      position: absolute;
+      left: 0;
+      width: 50px;
+      height: auto;
+    }
+
+    .header h2 {
+      font-size: 1.5em;
+      color: #2c3e50;
+      font-weight: 600;
+      margin: 0;
+      text-align: center;
+      flex: none;
+    }
+
+
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 0.5em;
+      color: #555;
+    }
+
+    #drop-zone {
+      border: 2px dashed #8aa7ff;
+      border-radius: 8px;
+      padding: 2em;
+      text-align: center;
+      color: #666;
+      cursor: pointer;
+      margin-bottom: 1em;
+      background: #f9fbff;
+      transition: background 0.3s, border-color 0.3s;
+      position: relative;
+    }
+
+    #drop-zone:hover {
+      background: #f0f4ff;
+      border-color: #4a90e2;
+    }
+
+    #drop-zone p {
+      margin: 0;
+      font-size: 0.95em;
+      color: #444;
+    }
+
+    #drop-zone input[type="file"] {
+      opacity: 0;
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      cursor: pointer;
+    }
+
+    #file-list {
+      list-style: none;
+      margin: 0 0 1.5em;
+      padding: 0;
+    }
+
+    #file-list li {
+      background: #eef3fa;
+      padding: 0.5em 1em;
+      margin-bottom: 0.4em;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95em;
+    }
+
+    #file-list li button {
+      background: none;
+      border: none;
+      font-size: 1em;
+      color: #c00;
+      cursor: pointer;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75em 1em;
+      margin-bottom: 1.5em;
+      border: 1px solid #ccd6e0;
+      border-radius: 8px;
+      font-size: 1em;
+      transition: border-color 0.2s ease;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+    }
+
+    button {
+      width: 100%;
+      padding: 0.9em;
+      background: #111;
+      color: white;
+      font-size: 1.05em;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    #download-link {
+      display: block;
+      text-align: center;
+      margin-top: 1em;
+      text-decoration: none;
+      font-weight: 500;
+      color: #4a90e2;
+      opacity: 0.5;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    #download-link.enabled-link {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .progress-container {
+      --progress: 0;
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      margin: 0.5em 0 0.6em;
+      padding: 0 1em;
+    }
+
+    .progress-container::before,
+    .progress-container::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      height: 4px;
+      border-radius: 2px;
+      transform: translateY(-50%);
+      z-index: 1;
+    }
+
+    .progress-container::before {
+      left: 20px;
+      right: 20px;
+      background: #e0e6ed;
+    }
+
+    .progress-container::after {
+      left: 20px;
+      width: calc((100% - 40px) * var(--progress));
+      background: #4a90e2;
+      transition: width 0.3s ease;
+    }
+
+    .step {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      flex: 1;
+    }
+
+    .step .icon {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 0.4em;
+      background: #d1d9e6;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2em;
+      transform: translateY(10px);
+      transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+    }
+
+    .step .icon i {
+      transition: transform 0.3s ease;
+    }
+
+    .step.active .icon {
+      background: #4a90e2;
+      transform: scale(1.1) translateY(10px);
+      box-shadow: 0 0 0 8px rgba(74,144,226,0.3);
+    }
+
+    .step.processing i {
+      animation: spin 1s linear infinite;
+    }
+
+    .step.completed .icon {
+      background: #28a745; /* Green for completed */
+      color: white;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .step span {
+      font-size: 0.9em;
+      color: #777;
+    }
+
+    .step.active span,
+    .step.completed span {
+      font-weight: 500;
+      color: #2c3e50;
+    }
+
+    h3 {
+      margin-top: 1.5em;
+      margin-bottom: 0.6em;
+      font-size: 1.1em;
+      color: #2c3e50;
+    }
+
+    #logs {
+      background: #1e1e1e;
+      color: #0f0;
+      padding: 1em;
+      border-radius: 6px;
+      height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.9em;
+      border: 1px solid #444;
+      white-space: pre;
+    }
+
+    .form-row {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    margin-bottom: 1.5em;
+  }
+
+  .form-row label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    min-width: 120px;
+    align-self: center;
+    position: relative;
+    top: -12px;
+  }
+
+  #reg_no {
+    flex: 1;
+  }
+
+  #file-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75em;
+    margin-bottom: 1.5em;
+    padding: 0;
+    list-style: none;
+  }
+
+ /* #file-list li {
+    position: relative;
+    background: #eef3fa;
+    padding: 1em;
+    border-radius: 8px;
+    font-size: 0.9em;
+    position: relative;
+    word-wrap: break-word;
+    min-height: 70px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+
+  #file-list li button {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 1em;
+    color: #c00;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }*/
+
+  #file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  }
+  #file-list li {
+    /* let the item size itself to its contents */
+    width: auto;
+  }
+
+  #upload-btn {
+  margin-top: 0em;    /* adjust the value as needed */
+}
+
+  </style>
+</head>
+<body>
+  <div class="container">
+<!--     <div class="logo"><img src="logo.png" alt="Company Logo"></div> -->
+<!--     <h2>AI Agent Dashboard for ACI</h2> -->
+  <div class="header">
+    <img src="static/logo.png" alt="Company Logo">
+    <h2>AI Agent Dashboard for ACI</h2>
+  </div>
+
+    <form id="upload-form">
+
+      <div class="form-row">
+  <label for="reg_no">Enquiry Number:</label>
+  <input type="text" id="reg_no" name="reg_no" required />
+</div>
+
+      <div id="drop-zone">
+        <p>Drag & drop PDF files here or click to select</p>
+        <input type="file" id="files" name="files" accept="application/pdf" multiple required />
+      </div>
+
+      <ul id="file-list"></ul>
+
+      <button type="button" id="upload-btn">Upload &amp; Process</button>
+    </form>
+
+    <a id="download-link" href="#" download>Download Excel</a>
+
+    <div class="progress-container" id="progress-container">
+      <div class="step" id="step-upload">
+        <div class="icon"><i class="fa fa-upload"></i></div>
+        <span>Uploading</span>
+      </div>
+      <div class="step" id="step-processing">
+        <div class="icon"><i class="fa fa-spinner"></i></div>
+        <span>Processing</span>
+      </div>
+      <div class="step" id="step-complete">
+        <div class="icon"><i class="fa fa-check"></i></div>
+        <span>Completed</span>
+      </div>
+    </div>
+
+
+    <div id="logs"></div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const fileInput = document.getElementById('files');
+      const dropZone = document.getElementById('drop-zone');
+      const fileListUI = document.getElementById('file-list');
+      const uploadBtn = document.getElementById('upload-btn');
+      const logsDiv = document.getElementById('logs');
+      const downloadLink = document.getElementById('download-link');
+      const progressContainer = document.getElementById('progress-container');
+
+      let selectedFiles = [];
+
+      function renderFileList() {
+        fileListUI.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+          const li = document.createElement('li');
+          li.innerHTML = `<span>${file.name}</span><button onclick="removeFile(${index})">✖</button>`;
+          fileListUI.appendChild(li);
+        });
+      }
+
+      window.removeFile = (index) => {
+        selectedFiles.splice(index, 1);
+        renderFileList();
+      };
+
+      function handleFiles(files) {
+        for (const file of files) {
+          if (file.type === 'application/pdf') {
+            selectedFiles.push(file);
+          }
+        }
+        renderFileList();
+      }
+
+      function updateLine() {
+        const steps = Array.from(document.querySelectorAll('.step'));
+        const total = steps.length;
+        let idx = steps.findIndex(s => s.classList.contains('active'));
+        if (idx < 0) {
+          const completed = steps.map((s, i) => s.classList.contains('completed') ? i : -1).filter(i => i >= 0);
+          idx = completed.length ? Math.max(...completed) : 0;
+        }
+        const frac = idx / (total - 1);
+        progressContainer.style.setProperty('--progress', frac);
+      }
+
+      window.updateProgress = (stepId, status) => {
+        const step = document.getElementById(stepId);
+        const icon = step.querySelector('.icon i');
+
+        step.classList.remove('active', 'completed', 'processing');
+        icon && icon.classList.remove('fa-pulse');
+
+        if (status === 'active') {
+          step.classList.add('active');
+          if (stepId === 'step-processing') {
+            step.classList.add('processing');
+          }
+        } else if (status === 'completed') {
+          step.classList.add('completed');
+        }
+
+        updateLine();
+      };
+
+      ['dragenter', 'dragover'].forEach(evt =>
+        dropZone.addEventListener(evt, e => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.style.background = '#e6eeff';
+          dropZone.style.borderColor = '#4a90e2';
+        })
+      );
+
+      ['dragleave', 'drop'].forEach(evt =>
+        dropZone.addEventListener(evt, e => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.style.background = '#f9fbff';
+          dropZone.style.borderColor = '#8aa7ff';
+        })
+      );
+
+      dropZone.addEventListener('drop', e => {
+        if (e.dataTransfer.files.length) {
+          handleFiles(e.dataTransfer.files);
+        }
+      });
+
+      fileInput.addEventListener('change', e => {
+        if (fileInput.files.length) {
+          handleFiles(fileInput.files);
+          fileInput.value = '';
+        }
+      });
+
+      uploadBtn.addEventListener('click', async () => {
+        logsDiv.textContent = '';
+        downloadLink.classList.remove('enabled-link');
+        downloadLink.href = '#';
+        downloadLink.removeAttribute('download');
+        ['step-upload', 'step-processing', 'step-complete'].forEach(id => updateProgress(id, ''));
+        progressContainer.style.setProperty('--progress', 0);
+
+        const reg_no = document.getElementById('reg_no').value.trim();
+        if (!reg_no || !selectedFiles.length) {
+          alert('Please enter enquiry number and select at least one PDF file.');
+          return;
+        }
+
+        updateProgress('step-upload', 'active');
+
+        const formData = new FormData();
+        formData.append('reg_no', reg_no);
+        selectedFiles.forEach(f => formData.append('files', f));
+
+        try {
+          const res = await fetch('http://127.0.0.1:8000/uploadfile/', {
+            method: 'POST',
+            body: formData
+          });
+          if (!res.ok) {
+            logsDiv.textContent = '🛑 Upload failed: ' + res.statusText;
+            return;
+          }
+
+          updateProgress('step-upload', 'completed');
+          // hide the file cards now that we're complete
+          document.getElementById('file-list').style.display = 'none';
+          updateProgress('step-processing', 'active');
+
+          const data = await res.json();
+          const allMoveLines = (data.move_log || '').trim().split('\n');
+          logsDiv.textContent = allMoveLines.slice(-selectedFiles.length).join('\n') + '\n\n';
+
+          let procFolder = null;
+          try {
+            const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
+            procFolder = pr.processed_folder;
+          } catch {}
+
+          if (procFolder && procFolder.startsWith("/")) {
+            const idx = procFolder.indexOf("/Database/");
+            if (idx !== -1) procFolder = procFolder.slice(idx + 10);
+          }
+
+          if (procFolder) {
+            const logResp = await fetch(`http://127.0.0.1:8000/${procFolder}/processing_log.log`);
+            if (logResp.ok) {
+              logsDiv.textContent += (await logResp.text()).trim() + '\n';
+            } else {
+              logsDiv.textContent += `(failed to load processing_log)\n`;
+            }
+          } else {
+            logsDiv.textContent += '(no processing_log found)\n';
+          }
+
+          logsDiv.scrollTop = logsDiv.scrollHeight;
+
+          let excelPath = data.excel_file;
+
+          if (!excelPath && data.processing_result && data.processing_result.length) {
+            // legacy fallback: parse from agent text
+            const m = data.processing_result[0].text.match(/"excel_file"\s*:\s*"([^"]+)"/);
+            excelPath = m && m[1];
+          }
+
+          if (excelPath) {
+            downloadLink.href = `http://127.0.0.1:8000/${excelPath}`;
+            downloadLink.download = excelPath.split('/').pop();
+            downloadLink.classList.add('enabled-link');
+          }
+
+          updateProgress('step-processing', 'completed');
+          updateProgress('step-complete', 'completed');
+
+          // 🔄 Reset UI state so subsequent uploads don't resend previous files
+          selectedFiles = [];
+          renderFileList();
+          document.getElementById('file-list').style.display = 'flex';
+
+        } catch (err) {
+          logsDiv.textContent = '⚠️ Network/server error: ' + err;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
