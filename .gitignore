@@ -8,11 +8,12 @@ myenv
 .pyc
 aiagentenv
 agentenv
-.pyc
+*.pyc
 .ipynb
-Helpers/__pycache__
-Services/__pycache__
 Utils/.ipynb_checkpoints
 Utils/file_mover.ipynb
 .DS_Store
+*.ipynb_checkpoints
+*.ipynb
 *.pyc
+

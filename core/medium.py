@@ -9,6 +9,8 @@ import pandas as pd
 import requests
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
+import random
+from typing import Tuple, cast
 
 # Load environment variables
 load_dotenv()
@@ -105,17 +107,34 @@ def path_extractor(chosen_file: str, platform: str) -> list:
     file_path = [date_part, platform, f"{platform}_{chosen_file}"]
     return file_path
 
-def download_excel_from_drive():
-    file_id = ensure_excel_on_drive()
-    request = drive.files().get_media(fileId=file_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-    fh.seek(0)
-    df = pd.read_excel(fh, dtype={"medium_url": str})
-    return df, file_id
+def _retry(fn, attempts: int = 3, delay: float = 1.0):
+    """Simple retry helper for transient network/SSL errors."""
+    for i in range(1, attempts + 1):
+        try:
+            return fn()
+        except Exception as e:
+            if i == attempts:
+                raise
+            # Only retry on network-layer errors
+            if "SSL" in str(e) or "ssl" in str(e).lower() or "HttpError" in type(e).__name__:
+                time.sleep(delay * i)
+                continue
+            raise
+
+def download_excel_from_drive() -> Tuple[pd.DataFrame, str]:
+    def _download():
+        file_id = ensure_excel_on_drive()
+        request = drive.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.seek(0)
+        df = pd.read_excel(fh, dtype={"medium_url": str})
+        return df, file_id
+
+    return cast(Tuple[pd.DataFrame, str], _retry(_download))
 
 def get_unpublished_filenames():
     df, _ = download_excel_from_drive()
@@ -213,20 +232,28 @@ def update_existing_entry(filename: str, updates: dict):
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
 
-def main():
+def publish_medium(filename: str | None = None) -> dict:
 
     # 2) Find target folder
     unpublished_files = get_unpublished_filenames()
+    if not unpublished_files:
+        print("No drafts pending for Medium.")
+        return {"status": "nothing_to_publish"}
+
     print("Files not yet posted to Medium:")
     for idx, name in enumerate(unpublished_files, 1):
         print(f"{idx}. {name}")
 
-    choice = int(input("Enter the number of the file to choose: ").strip())
-    if 1 <= choice <= len(unpublished_files):
-        chosen_file = unpublished_files[choice - 1]
-        print(f"You chose: {chosen_file}")
+    if filename:
+        if filename not in unpublished_files:
+            print(f"[ERROR] Requested filename '{filename}' not found in unpublished drafts.")
+            return {"status": "invalid_selection"}
+        chosen_file = filename
+        print(f"[INFO] User-selected draft: {chosen_file}")
     else:
-        print("Invalid selection.")
+        choice = random.randint(1, len(unpublished_files))
+        chosen_file = unpublished_files[choice - 1]
+        print(f"[INFO] Randomly selected draft #{choice}: {chosen_file}")
 
     file_path = path_extractor(chosen_file, 'medium')
 
@@ -272,6 +299,16 @@ def main():
 
         ctx.close()
         browser.close()
+
+    return {
+        "status": "published",
+        "file": chosen_file,
+        "title": title,
+        "url": medium_url,
+    }
+
+def main():
+    publish_medium()
 
 
 if __name__ == "__main__":

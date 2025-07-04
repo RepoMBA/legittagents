@@ -8,7 +8,7 @@ import pandas as pd
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from Helper.extract_text_from_pdf import data_retriever as extract_data_from_pdf
+from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
 DATABASE_DIR = Path("/Users/shresthkansal/LegittAI/legittagents/Database")
@@ -58,7 +58,7 @@ def move_file(filepath: str, reg_no: str, date_str: str = TODAY_STR):
     dest_folder = get_today_folder(date_str)
     # shutil.move(str(src), str(dest_folder / filename))
     print(dest_folder)
-    shutil.move(str(src), f"{dest_folder}/{filename}")
+    shutil.copy2(str(src), f"{dest_folder}/{filename}")
 
     log_move(filename, reg_no)
     print(f"Moved {filename} from {reg_no} to {dest_folder}")
@@ -185,12 +185,12 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     return dest_path, excel_path
 
 
-# def main():
-#     move_multiple_files('9H-SLI')
-#     process_pdf_folder(TODAY_STR)
+def main():
+    move_multiple_files('9H-SLI')
+    process_pdf_folder(TODAY_STR)
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()
 
     
 
