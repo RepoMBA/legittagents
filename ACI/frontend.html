@@ -365,7 +365,7 @@
 
   <script>
     // Configuration - Change this to match your server
-    const SERVER_URL = 'http://127.0.0.1:7000/ACI';
+    const SERVER_URL = 'http://127.0.0.1:8000';
     
     document.addEventListener('DOMContentLoaded', () => {
       const fileInput = document.getElementById('files');
@@ -492,38 +492,14 @@
           const data = await res.json();
           const allMoveLines = (data.move_log || '').trim().split('\n');
           logsDiv.textContent = allMoveLines.slice(-selectedFiles.length).join('\n') + '\n\n';
-          // window.alert("Hello WOrld")
-          // let procFolder = null;
-          //             // console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
-          //
-          // try {
-          //   const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
-          //   procFolder = pr.processed_folder;
-          // } catch {}
-          //   console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
-          //
-          // if (procFolder) {
-          //   // console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
-          //   const logResp = await fetch(`${SERVER_URL}/${procFolder}/processing_log.log`);
-          //   if (logResp.ok) {
-          //     logsDiv.textContent += (await logResp.text()).trim() + '\n';
-          //   } else {
-          //     logsDiv.textContent += `(failed to load processing.log)\n`;
-          //   }
-          // } else {
-          //   logsDiv.textContent += '(no processing.log path found)\n';
-          // }
-          let procFolder = null;
 
+          let procFolder = null;
           try {
-            const pr = data.processing_result?.structured_content;
-            procFolder = pr?.processed_folder;
-          } catch (err) {
-            console.error('Error extracting processed folder:', err);
-          }
-          console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
+            const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
+            procFolder = pr.processed_folder;
+          } catch {}
+
           if (procFolder) {
-            console.log(`${SERVER_URL}/${procFolder}/processing_log.log`);
             const logResp = await fetch(`${SERVER_URL}/${procFolder}/processing_log.log`);
             if (logResp.ok) {
               logsDiv.textContent += (await logResp.text()).trim() + '\n';
