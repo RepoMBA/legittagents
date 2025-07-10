@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # CONFIGURATION
-API_URL="http://localhost:8000"
+# Change this to match your server URL (same as SERVER_URL in frontend.html)
+API_URL="http://127.0.0.1:8000"
 TO_UPLOAD_DIR="./Database/to_upload"
 LOCAL_PROCESSED_DIR="./"
 REG_NO="TESTREG"  # Change as needed

@@ -11,6 +11,9 @@ import glob
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import glob
+import datetime
+from config import SERVER_HOST, SERVER_PORT, UPLOAD_DIRECTORY, PROCESSING_DIR, PROCESSED_DIR, LOG_DIR
 
 app = FastAPI()
 
@@ -21,13 +24,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-PROJECT_PATH = "./ACI"
-DATABASE_PATH = "./ACI/Database"
-app.mount("/ACI/Database/Processed", StaticFiles(directory=f"{DATABASE_PATH}/Processed"), name="processed")
-app.mount("/ACI/Database/Processing", StaticFiles(directory=f"{DATABASE_PATH}/Processing"), name="processing")
-app.mount("/ACI/static", StaticFiles(directory="./ACI/static"), name="static")
 
-UPLOAD_DIRECTORY = f"{DATABASE_PATH}/To_Be_Processed"
+# Use configuration from config.py
+processing_dir = PROCESSING_DIR
+processed_dir = PROCESSED_DIR
+log_dir = LOG_DIR
+
+app.mount("/Database/Processed", StaticFiles(directory=processed_dir), name="processed")
+app.mount("/Database/Processing", StaticFiles(directory=processing_dir), name="processing")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
@@ -46,7 +51,6 @@ async def send_log_to_ws(reg_no: str, message: str):
 @app.websocket("/ws/logs/{reg_no}")
 async def websocket_endpoint(websocket: WebSocket, reg_no: str):
     await websocket.accept()
-    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     # Find the latest log file
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     if not log_files:
@@ -75,7 +79,9 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     saved_files = []
     for file in files:
         if file.filename:
-            file_location = os.path.join(upload_dir, file.filename)
+            # file_location = os.path.join(upload_dir, file.filename)
+            filename = os.path.basename(file.filename)
+            file_location = os.path.join(upload_dir, filename)
             with open(file_location, "wb+") as file_object:
                 shutil.copyfileobj(file.file, file_object)
             saved_files.append(file.filename)
@@ -92,9 +98,6 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
         processed_folder = None
 
     # Read move log (latest by date)
-    import glob
-    import datetime
-    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     move_log_content = ""
     if log_files:
@@ -133,9 +136,6 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
 @app.get("/download/move_log")
 def download_latest_move_log():
-    import glob
-    import os
-    log_dir = f"{DATABASE_PATH}/To_Be_Processed/move_logs/"
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
     if not log_files:
         return {"error": "No move log file found yet. This is normal for the first upload of the day."}
@@ -144,9 +144,6 @@ def download_latest_move_log():
 
 @app.get("/download/processing_log")
 def download_processing_log(folder: str = ""):
-    import glob
-    import os
-    processed_dir = f"{DATABASE_PATH}/Processed/"
     if folder:
         log_path = os.path.join(processed_dir, folder, "processing_log.log")
         if not os.path.exists(log_path):
@@ -162,8 +159,6 @@ def download_processing_log(folder: str = ""):
 
 @app.get("/download/excel")
 def download_excel(folder: str = ""):
-    import os
-    processed_dir = f"{DATABASE_PATH}/Processed/"
     if folder:
         excel_path = os.path.join(processed_dir, folder, "combined_data.xlsx")
         if not os.path.exists(excel_path):
@@ -179,13 +174,13 @@ def download_excel(folder: str = ""):
 
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse(f"{PROJECT_PATH}/static/favicon.ico")
+    return FileResponse("static/favicon.ico")
 
 @app.get("/")
 def serve_frontend():
-    return FileResponse(f"{PROJECT_PATH}/frontend.html")
+    return FileResponse("frontend.html")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
 
     
