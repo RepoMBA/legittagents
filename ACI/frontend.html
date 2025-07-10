@@ -22,31 +22,13 @@
 
     .container {
       background: #fff;
-      max-width: 720px;
+      max-width: 1020px;
       width: 100%;
       border-radius: 14px;
       box-shadow: 0 6px 24px rgba(0,0,0,0.08);
       padding: 2em;
     }
 
-    /*.logo {
-      text-align: center;
-      margin-bottom: 0.5em;
-    }
-
-    .logo img {
-      width: 120px;
-      height: auto;
-    }*/
-
-
-    /*h2 {
-      text-align: center;
-      color: #2c3e50;
-      font-weight: 600;
-      margin-top: 0.2em;
-      margin-bottom: 1.2em;
-    }*/
 
     .header {
       display: flex;
@@ -81,16 +63,14 @@
     }
 
     #drop-zone {
-      border: 2px dashed #8aa7ff;
+      border: 2px solid #4a90e2;
       border-radius: 8px;
-      padding: 2em;
+      padding: 1.5em;
       text-align: center;
-      color: #666;
+      background: #eef3fa;
       cursor: pointer;
       margin-bottom: 1em;
-      background: #f9fbff;
       transition: background 0.3s, border-color 0.3s;
-      position: relative;
     }
 
     #drop-zone:hover {
@@ -106,38 +86,45 @@
 
     #drop-zone input[type="file"] {
       opacity: 0;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
       cursor: pointer;
+      display: inline-block;
+      width: 100%;
+      height: 2.5em;
     }
 
+  /* grid with exactly 3 equal columns */
     #file-list {
-      list-style: none;
-      margin: 0 0 1.5em;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75em;          /* space between cards */
       padding: 0;
+      list-style: none;
     }
 
+    /* let each card fill its grid cell */
     #file-list li {
-      background: #eef3fa;
-      padding: 0.5em 1em;
-      margin-bottom: 0.4em;
+      width: 100%;
+      padding: 0.5em 1em;   /* your existing padding */
       border-radius: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.95em;
-    }
+      background: #eef3fa;
+      position: relative;
+    } 
 
     #file-list li button {
-      background: none;
+      position: absolute;
       border: none;
       font-size: 1em;
       color: #c00;
       cursor: pointer;
+      width: auto;      /* shrink to content */
+      padding: 0;
+      top: 10%;
+      right: -0.3em;       /* shift left half of its width (≈0.5em) */
+      transform: translateY(-50%);
+      background: transparent;
+      z-index: 1;
     }
+
 
     input[type="text"] {
       width: 100%;
@@ -291,7 +278,7 @@
       color: #0f0;
       padding: 1em;
       border-radius: 6px;
-      height: 300px;
+      height: 400px;
       overflow-y: auto;
       font-family: monospace;
       font-size: 0.9em;
@@ -303,7 +290,7 @@
     display: flex;
     align-items: center;
     gap: 1em;
-    margin-bottom: 1.5em;
+    margin-bottom: 0em;
   }
 
   .form-row label {
@@ -319,61 +306,15 @@
     flex: 1;
   }
 
-  #file-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.75em;
-    margin-bottom: 1.5em;
-    padding: 0;
-    list-style: none;
-  }
-
- /* #file-list li {
-    position: relative;
-    background: #eef3fa;
-    padding: 1em;
-    border-radius: 8px;
-    font-size: 0.9em;
-    position: relative;
-    word-wrap: break-word;
-    min-height: 70px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    overflow: hidden;
-  }
-
-  #file-list li button {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    background: none;
-    border: none;
-    font-size: 1em;
-    color: #c00;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-  }*/
-
-  #file-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75em;
-  }
-  #file-list li {
-    /* let the item size itself to its contents */
-    width: auto;
-  }
 
   #upload-btn {
-  margin-top: 0em;    /* adjust the value as needed */
+  margin-top: 1em;    /* adjust the value as needed */
 }
 
   </style>
 </head>
 <body>
   <div class="container">
-<!--     <div class="logo"><img src="logo.png" alt="Company Logo"></div> -->
-<!--     <h2>AI Agent Dashboard for ACI</h2> -->
   <div class="header">
     <img src="static/logo.png" alt="Company Logo">
     <h2>AI Agent Dashboard for ACI</h2>
@@ -383,12 +324,17 @@
 
       <div class="form-row">
   <label for="reg_no">Enquiry Number:</label>
-  <input type="text" id="reg_no" name="reg_no" required />
+<!--   <input type="text" id="reg_no" name="reg_no" required /> -->
+  <input type="text" id="reg_no" name="reg_no" required readonly />
 </div>
-
-      <div id="drop-zone">
-        <p>Drag & drop PDF files here or click to select</p>
-        <input type="file" id="files" name="files" accept="application/pdf" multiple required />
+      <div style="text-align: center; margin-bottom: 1em;">
+        <span >
+            <label style="padding: 0.75em 2em; font-size: 1em; border-radius: 8px; background: #4a90e2; color: white; border: none; display: inline-block; cursor: pointer;">
+            <input type="file" id="files" name="files" webkitdirectory directory multiple required style="display: none; width: fit-content;" >
+            📁 Select Folder
+          </input>
+        </label>
+          </span>
       </div>
 
       <ul id="file-list"></ul>
@@ -418,6 +364,9 @@
   </div>
 
   <script>
+    // Configuration - Change this to match your server
+    const SERVER_URL = 'http://127.0.0.1:7000/ACI';
+    
     document.addEventListener('DOMContentLoaded', () => {
       const fileInput = document.getElementById('files');
       const dropZone = document.getElementById('drop-zone');
@@ -444,13 +393,28 @@
       };
 
       function handleFiles(files) {
-        for (const file of files) {
+        selectedFiles = [];
+        const fileArray = Array.from(files);
+        const folderPath = fileArray[0]?.webkitRelativePath?.split('/')[0] || '';
+
+        if (folderPath) {
+          document.getElementById('reg_no').value = folderPath;
+        }
+
+        for (const file of fileArray) {
           if (file.type === 'application/pdf') {
             selectedFiles.push(file);
           }
         }
         renderFileList();
       }
+
+      fileInput.addEventListener('change', e => {
+        if (fileInput.files.length) {
+          handleFiles(fileInput.files);
+          fileInput.value = '';
+        }
+      });
 
       function updateLine() {
         const steps = Array.from(document.querySelectorAll('.step'));
@@ -483,30 +447,6 @@
         updateLine();
       };
 
-      ['dragenter', 'dragover'].forEach(evt =>
-        dropZone.addEventListener(evt, e => {
-          e.preventDefault();
-          e.stopPropagation();
-          dropZone.style.background = '#e6eeff';
-          dropZone.style.borderColor = '#4a90e2';
-        })
-      );
-
-      ['dragleave', 'drop'].forEach(evt =>
-        dropZone.addEventListener(evt, e => {
-          e.preventDefault();
-          e.stopPropagation();
-          dropZone.style.background = '#f9fbff';
-          dropZone.style.borderColor = '#8aa7ff';
-        })
-      );
-
-      dropZone.addEventListener('drop', e => {
-        if (e.dataTransfer.files.length) {
-          handleFiles(e.dataTransfer.files);
-        }
-      });
-
       fileInput.addEventListener('change', e => {
         if (fileInput.files.length) {
           handleFiles(fileInput.files);
@@ -535,7 +475,7 @@
         selectedFiles.forEach(f => formData.append('files', f));
 
         try {
-          const res = await fetch('http://127.0.0.1:8000/uploadfile/', {
+          const res = await fetch(`${SERVER_URL}/uploadfile/`, {
             method: 'POST',
             body: formData
           });
@@ -552,52 +492,62 @@
           const data = await res.json();
           const allMoveLines = (data.move_log || '').trim().split('\n');
           logsDiv.textContent = allMoveLines.slice(-selectedFiles.length).join('\n') + '\n\n';
-
+          // window.alert("Hello WOrld")
+          // let procFolder = null;
+          //             // console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
+          //
+          // try {
+          //   const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
+          //   procFolder = pr.processed_folder;
+          // } catch {}
+          //   console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
+          //
+          // if (procFolder) {
+          //   // console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
+          //   const logResp = await fetch(`${SERVER_URL}/${procFolder}/processing_log.log`);
+          //   if (logResp.ok) {
+          //     logsDiv.textContent += (await logResp.text()).trim() + '\n';
+          //   } else {
+          //     logsDiv.textContent += `(failed to load processing.log)\n`;
+          //   }
+          // } else {
+          //   logsDiv.textContent += '(no processing.log path found)\n';
+          // }
           let procFolder = null;
+
           try {
-            const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
-            procFolder = pr.processed_folder;
-          } catch {}
-
-          if (procFolder && procFolder.startsWith("/")) {
-            const idx = procFolder.indexOf("/Database/");
-            if (idx !== -1) procFolder = procFolder.slice(idx + 10);
+            const pr = data.processing_result?.structured_content;
+            procFolder = pr?.processed_folder;
+          } catch (err) {
+            console.error('Error extracting processed folder:', err);
           }
-
+          console.log(`${SERVER_URL}/${procFolder}/processing_log.log`)
           if (procFolder) {
-            const logResp = await fetch(`http://127.0.0.1:8000/${procFolder}/processing_log.log`);
+            console.log(`${SERVER_URL}/${procFolder}/processing_log.log`);
+            const logResp = await fetch(`${SERVER_URL}/${procFolder}/processing_log.log`);
             if (logResp.ok) {
               logsDiv.textContent += (await logResp.text()).trim() + '\n';
             } else {
-              logsDiv.textContent += `(failed to load processing_log)\n`;
+              logsDiv.textContent += `(failed to load processing.log)\n`;
             }
           } else {
-            logsDiv.textContent += '(no processing_log found)\n';
+            logsDiv.textContent += '(no processing.log path found)\n';
           }
 
           logsDiv.scrollTop = logsDiv.scrollHeight;
 
-          let excelPath = data.excel_file;
-
-          if (!excelPath && data.processing_result && data.processing_result.length) {
-            // legacy fallback: parse from agent text
+          if (procFolder) {
             const m = data.processing_result[0].text.match(/"excel_file"\s*:\s*"([^"]+)"/);
-            excelPath = m && m[1];
-          }
-
-          if (excelPath) {
-            downloadLink.href = `http://127.0.0.1:8000/${excelPath}`;
-            downloadLink.download = excelPath.split('/').pop();
-            downloadLink.classList.add('enabled-link');
+            if (m) {
+              const excelPath = m[1];
+              downloadLink.href = `${SERVER_URL}/${excelPath}`;
+              downloadLink.download = excelPath.split('/').pop();
+              downloadLink.classList.add('enabled-link');
+            }
           }
 
           updateProgress('step-processing', 'completed');
           updateProgress('step-complete', 'completed');
-
-          // 🔄 Reset UI state so subsequent uploads don't resend previous files
-          selectedFiles = [];
-          renderFileList();
-          document.getElementById('file-list').style.display = 'flex';
 
         } catch (err) {
           logsDiv.textContent = '⚠️ Network/server error: ' + err;
