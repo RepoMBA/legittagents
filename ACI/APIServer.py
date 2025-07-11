@@ -172,6 +172,23 @@ def download_excel(folder: str = ""):
             return FileResponse(excel_path, filename=f"combined_data_{f}.xlsx", media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     return {"error": "No combined_data.xlsx found in any processed folder."}
 
+@app.get("/api/processing_log_text")
+def get_processing_log_text(folder: str = ""):
+    if folder:
+        log_path = os.path.join(processed_dir, folder, "processing_log.log")
+        if not os.path.exists(log_path):
+            return PlainTextResponse("No processing_log.log found in this folder.", status_code=404)
+        with open(log_path, "r") as f:
+            return PlainTextResponse(f.read())
+    # fallback: latest
+    folders = sorted([f for f in os.listdir(processed_dir) if os.path.isdir(os.path.join(processed_dir, f))], reverse=True)
+    for f in folders:
+        log_path = os.path.join(processed_dir, f, "processing_log.log")
+        if os.path.exists(log_path):
+            with open(log_path, "r") as file:
+                return PlainTextResponse(file.read())
+    return PlainTextResponse("No processing_log.log found in any processed folder.", status_code=404)
+
 @app.get("/favicon.ico")
 def favicon():
     return FileResponse("static/favicon.ico")
