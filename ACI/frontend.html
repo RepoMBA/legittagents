@@ -493,9 +493,15 @@
           const allMoveLines = (data.move_log || '').trim().split('\n');
           logsDiv.textContent = allMoveLines.slice(-selectedFiles.length).join('\n') + '\n\n';
 
+          // let procFolder = null;
+          // try {
+          //   const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
+          //   procFolder = pr.processed_folder;
+          // } catch {}
+
           let procFolder = null;
           try {
-            const pr = data.processing_result[0] && JSON.parse(data.processing_result[0].text);
+            const pr = data.processing_result?.content?.[0] && JSON.parse(data.processing_result.content[0].text);
             procFolder = pr.processed_folder;
           } catch {}
 
