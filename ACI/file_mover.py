@@ -3,9 +3,10 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 from Helper.extract_pdf_to_excel import data_retriever as extract_data_from_pdf
+from config import DATABASE_DIRECTORY
 
 # Constants for base directories
-DATABASE_DIR = Path("./Database")
+DATABASE_DIR = Path(DATABASE_DIRECTORY)
 TO_BE_PROCESSED = DATABASE_DIR / "To_Be_Processed"
 PROCESSING = DATABASE_DIR / "Processing"
 PROCESSED = DATABASE_DIR / "Processed"
