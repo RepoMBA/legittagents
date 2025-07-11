@@ -7,6 +7,7 @@ SERVER_PORT = 8000        # Server port
 SERVER_URL = "http://127.0.0.1:8000"  # Client-facing URL
 
 # Database paths
+DATABASE_DIRECTORY = "./Database"
 UPLOAD_DIRECTORY = "./Database/To_Be_Processed"
 PROCESSING_DIR = "./Database/Processing"
 PROCESSED_DIR = "./Database/Processed/"
