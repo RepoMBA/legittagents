@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 import glob
 import datetime
 from config import SERVER_HOST, SERVER_PORT, UPLOAD_DIRECTORY, PROCESSING_DIR, PROCESSED_DIR, LOG_DIR
+from fastapi.responses import PlainTextResponse
 
 app = FastAPI()
 
