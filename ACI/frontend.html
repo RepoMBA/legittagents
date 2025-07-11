@@ -499,27 +499,28 @@
             procFolder = pr.processed_folder;
           } catch {}
 
-          if (procFolder) {
-            const logResp = await fetch(`${SERVER_URL}/${procFolder}/processing_log.log`);
+          // Always extract just the folder name (not full path)
+          let folderName = procFolder ? procFolder.split('/').pop() : null;
+
+          if (folderName) {
+            // Fetch processing log using the new API route for plain text
+            const logResp = await fetch(`${SERVER_URL}/api/processing_log_text?folder=${folderName}`);
             if (logResp.ok) {
               logsDiv.textContent += (await logResp.text()).trim() + '\n';
             } else {
-              logsDiv.textContent += `(failed to load processing.log)\n`;
+              logsDiv.textContent += `(failed to load processing_log)\n`;
             }
           } else {
-            logsDiv.textContent += '(no processing.log path found)\n';
+            logsDiv.textContent += '(no processing_log path found)\n';
           }
 
           logsDiv.scrollTop = logsDiv.scrollHeight;
 
-          if (procFolder) {
-            const m = data.processing_result[0].text.match(/"excel_file"\s*:\s*"([^"]+)"/);
-            if (m) {
-              const excelPath = m[1];
-              downloadLink.href = `${SERVER_URL}/${excelPath}`;
-              downloadLink.download = excelPath.split('/').pop();
-              downloadLink.classList.add('enabled-link');
-            }
+          // Enable download link for Excel using the API route
+          if (folderName) {
+            downloadLink.href = `${SERVER_URL}/download/excel?folder=${folderName}`;
+            downloadLink.download = `combined_data_${folderName}.xlsx`;
+            downloadLink.classList.add('enabled-link');
           }
 
           updateProgress('step-processing', 'completed');
