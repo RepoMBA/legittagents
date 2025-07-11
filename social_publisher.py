@@ -174,15 +174,17 @@ def set_active_user(user_id: str):
 
 def post_to_twitter_with_retry(user_id: Optional[str] = None, article_id: Optional[str] = None, filename: Optional[str] = None) -> Tuple[bool, Dict]:
     """Post a single tweet to Twitter with automatic token refresh on auth failure."""
-    logger.info(f"Posting to Twitter: {filename}")
+    logger.info(f"Posting to Twitter...")
     
     # If user_id is provided, set it in the environment
     if user_id:
         os.environ["ACTIVE_USER"] = user_id
     
     # First attempt to post
+    error_details = ""
     try:
-        result = post_twitter_func()
+        print(f"posting for {user_id}")
+        result = post_twitter_func(user_id)
         published = result.get("published", []) if isinstance(result, dict) else []
         failed = result.get("failed", []) if isinstance(result, dict) else []
         
@@ -214,7 +216,6 @@ def post_to_twitter_with_retry(user_id: Optional[str] = None, article_id: Option
         result = {"status": "error", "message": error_msg}
     
     # If we got here, the first attempt failed - check if it's an auth error
-    print("ERROR MSG:", error_details, is_auth_error(error_details))
 
     if is_auth_error(error_details):
         print("is_auth_error")

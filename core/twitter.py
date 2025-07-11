@@ -40,7 +40,7 @@ def post_to_twitter(text: str, bearer_token: str) -> Dict[str, Any]:
     resp.raise_for_status()
     return resp.json()
 
-def post_twitter() -> dict:
+def post_twitter(user_id) -> dict:
     # Import needed functions here to avoid circular import
     from Utils.google_drive import (
         update_existing_entry,
@@ -60,7 +60,7 @@ def post_twitter() -> dict:
     # ------------------------------------------------------------------
     active_user: Optional[str] = os.getenv("ACTIVE_USER")
     try:
-        user_creds = _user_creds(active_user) if active_user else _user_creds()
+        user_creds = _user_creds(user_id) if user_id else _user_creds(active_user)
     except KeyError:
         print(f"[ERROR] Unknown user '{active_user}'. Ensure ACTIVE_USER env var is set correctly.")
         return {"status": "error", "error": "unknown_user"}

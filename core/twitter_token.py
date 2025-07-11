@@ -9,9 +9,9 @@ import threading
 
 # Centralised credential access
 try:
-    from core.credentials import user as _user_creds, save as _save_creds  
+    from core.credentials import user as _user_creds, save as _save_creds, _default_user_id  
 except ImportError:
-    from credentials import user as _user_creds, save as _save_creds
+    from credentials import user as _user_creds, save as _save_creds, _default_user_id
 
 # Keep dotenv for supplementary vars (e.g. OPENAI_API_KEY) but load AFTER we
 # patched env vars via the credentials module import above.
@@ -28,9 +28,11 @@ def make_code_challenge(verifier: str) -> str:
 # ─── CONFIG ──────────────────────────────────────────────────────────────
 PORT = 8000
 STATE = secrets.token_urlsafe(16)
-
 # Resolve credentials for the active user (defaults to the first user key)
-twitter_credentials = _user_creds("ravi").get("twitter", {})
+user = _default_user_id()
+if not user:
+    raise RuntimeError("No ACTIVE_USER set in credentials.json or environment")
+twitter_credentials = _user_creds(user).get("twitter", {})
 
 CLIENT_ID     = twitter_credentials["client_id"]
 CLIENT_SECRET = twitter_credentials["client_secret"]   # if you're truly using PKCE you can leave this blank
@@ -119,7 +121,7 @@ def callback():
 
     return "✅ Authentication successful! Token saved. You may close this tab.", 200
 
-def refresh_token_auto():
+def refresh_token_auto(user_id: str = "ravi") -> bool:
     """
     Refreshes the Twitter access token using the stored refresh token without requiring reauthorization.
     
@@ -130,6 +132,11 @@ def refresh_token_auto():
     Returns:
         bool: True if the refresh was successful, False otherwise
     """
+    twitter_credentials = _user_creds(user_id).get("twitter", {})
+
+    CLIENT_ID     = twitter_credentials["client_id"]
+    CLIENT_SECRET = twitter_credentials["client_secret"]  # if you're truly using PKCE you can leave this blank
+
     # Check if we have a refresh token
     if "refresh_token" not in twitter_credentials:
         print("No refresh token found. You must authorize with 'offline.access' scope first.")
@@ -194,6 +201,6 @@ def refresh_twitter_token():
 def main():
     # webbrowser.open(str(TWITTER_LOCAL_SERVER))
     # flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
-    print(refresh_token_auto())
+    print(refresh_token_auto(user))
 if __name__ == '__main__':
     main()

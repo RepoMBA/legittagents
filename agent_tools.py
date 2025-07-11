@@ -63,10 +63,10 @@ def _publish_medium_dynamic(filename: str = ""):
     return _run_with_logs(publish_medium, arg)
 
 def _post_linkedin_wrapper(*_args, **_kwargs):
-    return _run_with_logs(post_linkedin)
+    return _run_with_logs(post_linkedin())
 
-def _post_twitter_wrapper(*_args, **_kwargs):
-    return _run_with_logs(post_twitter)
+def _post_twitter_wrapper(user, *_args, **_kwargs):
+    return _run_with_logs(post_twitter(user))
 
 # -----------------------------
 

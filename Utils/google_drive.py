@@ -421,6 +421,93 @@ def get_unpublished_filenames(platform: str | None = None, employee_name: Option
 
     return results
 
+def get_article_id_by_filename(filename: str) -> Optional[int]:
+    """Get the article ID for a given filename"""
+    excel_data = download_excel_from_drive()
+    
+    if 'articles' not in excel_data:
+        raise ValueError("Excel file must contain an 'articles' sheet.")
+    
+    articles_df = excel_data['articles']
+    
+    if "id" not in articles_df.columns or "filename" not in articles_df.columns:
+        raise ValueError("Articles sheet must contain 'id' and 'filename' columns.")
+    
+    matching_rows = articles_df[articles_df["filename"] == filename]
+    
+    if matching_rows.empty:
+        return None
+    
+    return int(matching_rows.iloc[0]["id"])
+
+def create_social_post_entries(article_id: int, medium_url: str) -> int:
+    """
+    Create social post entries for all social accounts in the social_accounts sheet
+    for the given article
+    
+    Args:
+        article_id: The ID of the article
+        medium_url: The URL of the Medium post
+        
+    Returns:
+        int: The number of social post entries created
+    """
+    excel_data = download_excel_from_drive()
+    file_id = excel_data['file_id']
+    
+    if 'social_accounts' not in excel_data or 'social_posts' not in excel_data:
+        raise ValueError("Excel file must contain 'social_accounts' and 'social_posts' sheets.")
+    
+    social_accounts_df = excel_data['social_accounts']
+    social_posts_df = excel_data['social_posts']
+    
+    # Check if necessary columns exist
+    required_columns = ['id', 'employee_name', 'platform']
+    for col in required_columns:
+        if col not in social_accounts_df.columns:
+            raise ValueError(f"Social accounts sheet missing required column: {col}")
+    
+    # Get the next available ID for social posts
+    next_id = 1
+    if not social_posts_df.empty and 'id' in social_posts_df.columns and social_posts_df['id'].notna().any():
+        next_id = int(social_posts_df['id'].max()) + 1
+    
+    # Create new entries for all social accounts
+    new_posts = []
+    for _, account in social_accounts_df.iterrows():
+        new_post = {
+            "id": next_id,
+            "employee_name": account["employee_name"],
+            "platform": account["platform"],
+            "article_id": article_id,
+            "posted": False,
+            "post_date": "",
+            "post_url": ""
+        }
+        new_posts.append(new_post)
+        next_id += 1
+    
+    # Add the new posts to the dataframe
+    if new_posts:
+        new_posts_df = pd.DataFrame(new_posts)
+        social_posts_df = pd.concat([social_posts_df, new_posts_df], ignore_index=True)
+    
+    # Save and upload
+    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+        # Write all sheets
+        for sheet_name, df in excel_data.items():
+            if sheet_name != 'social_posts' and sheet_name != 'file_id':
+                if isinstance(df, pd.DataFrame):
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        # Write the updated social_posts sheet
+        social_posts_df.to_excel(writer, sheet_name='social_posts', index=False)
+    
+    media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
+    
+    return len(new_posts)
+
 def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
     """
     Retrieve a file from Google Drive using a path list.
@@ -473,6 +560,32 @@ def path_extractor(chosen_file: str, platform: str) -> list:
     date_part = chosen_file.split('_')[0]
     file_path = [date_part, platform, f"{platform}_{chosen_file}"]
     return file_path
+
+def get_next_social_post_id() -> int:
+    """Return the next integer ID for the *social_posts* sheet.
+
+    Robust against cases where the ``id`` column exists but contains
+    only *NaN* / non-numeric entries (which would make ``max()`` return
+    *NaN* and crash when cast to ``int``)."""
+
+    excel_data = download_excel_from_drive()
+
+    # If the sheet is missing or empty → 1
+    if 'social_posts' not in excel_data:
+        return 1
+
+    social_posts_df = excel_data['social_posts']
+    if social_posts_df.empty or 'id' not in social_posts_df.columns:
+        return 1
+
+    # Convert to numeric, coercing errors to NaN, then drop NaN rows
+    numeric_ids = pd.to_numeric(social_posts_df['id'], errors='coerce')
+    numeric_ids_series = numeric_ids.dropna()
+    if numeric_ids_series.empty:
+        return 1
+
+    return int(numeric_ids_series.max()) + 1
+
 
 # Backwards compatibility function
 def update_existing_entry(filename: str, updates: dict) -> None:
