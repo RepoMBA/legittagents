@@ -143,15 +143,20 @@ def avg_interest(pytrends, kw: str):
 
 # === MAIN ===
 
-def generate_keywords(seeds: list[str] | None = None):
+def generate_keywords(seeds: list[str] | None = None, output_file: str | None = None):
     """Expand the given seeds (comma-separated words) into trending keywords.
 
     If *seeds* is None we fall back to the default SEED_KEYWORDS list loaded
     from the file configured by the SEED_FILE env-var.  When provided we use
     the supplied list instead (white-space stripped per element).
+    
+    Args:
+        seeds: List of seed keywords, or None to use defaults
+        output_file: Path to save the keywords, or None to use default path
     """
 
     target_seeds = [s.strip() for s in (seeds or SEED_KEYWORDS) if s.strip()]
+    keywords_output_path = output_file or KEYWORDS_JSON
 
     def process_seed(seed: str):
         """Expand *seed*, score it plus its candidates, return list of dicts."""
@@ -195,18 +200,18 @@ def generate_keywords(seeds: list[str] | None = None):
     combined = [{"keyword": k, "avg_interest": v} for k, v in by_kw.items()]
     combined.sort(key=lambda x: x["avg_interest"], reverse=True)
     top = combined[:TOP_N]
-    os.makedirs(os.path.dirname(KEYWORDS_JSON), exist_ok=True)
-    with open(KEYWORDS_JSON, "w") as f:
+    os.makedirs(os.path.dirname(keywords_output_path), exist_ok=True)
+    with open(keywords_output_path, "w") as f:
         json.dump(top, f, indent=2)
 
-    print(f"\n✅ Exported {len(top)} trending keywords to {KEYWORDS_JSON}")
+    print(f"\n✅ Exported {len(top)} trending keywords to {keywords_output_path}")
 
     # Return a concise, human-readable summary instead of None so the caller
     # (Streamlit chat) can display feedback to the user.
     return {
         "count": len(top),
         "keywords": [k["keyword"] for k in top],
-        "file": KEYWORDS_JSON,
+        "file": keywords_output_path,
     }
 
 # ── Rate-limiter for PyTrends calls ──────────────────────────────────────────

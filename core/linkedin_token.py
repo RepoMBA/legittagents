@@ -95,7 +95,7 @@ def callback():
     )
     resp.raise_for_status()
     token_data = resp.json()
-    
+    print(token_data)
     access_token = token_data["access_token"]
 
     headers = {
@@ -110,7 +110,6 @@ def callback():
     author_urn = f"urn:li:person:{member_id}"
     token_data["author_urn"] = author_urn
     
-
     # 4) persist to credentials JSON under current user
     linkedin_credentials.update({
         "access_token": access_token,

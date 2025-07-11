@@ -1,21 +1,14 @@
 # Standard libs
 import os
-import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 # External deps
 from dotenv import load_dotenv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-import pandas as pd
 import requests
-from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
-import io
 
-from core.credentials import google, global_cfg, user as _user_creds
-gcreds = google()                 # → plain dict
+from core.credentials import global_cfg, user as _user_creds
+
 global_cfg = global_cfg()
 
 # Load environment variables
@@ -25,94 +18,6 @@ load_dotenv()
 
 DATABASE: str = global_cfg["blog_content_database"]
 EXCEL_NAME: str = global_cfg["excel_name"]
-
-# ---------- Drive Configuration ----------
-SERVICE_ACCOUNT_FILE = gcreds["service_account_json"]
-DRIVE_SCOPES: list[str] = [gcreds["drive_scope"]]
-GOOGLE_EMAIL         = gcreds["google_email"]
-GOOGLE_PASSWORD      = gcreds["google_password"]
-FOLDER_ID: str = gcreds["drive_folder_id"]
-SHARED_DRIVE_ID: str = gcreds["shared_drive_id"]
-DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
-LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
-if SHARED_DRIVE_ID:
-    LIST_KWARGS.update({"driveId": SHARED_DRIVE_ID, "corpora": "drive"})
-
-drive_creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=DRIVE_SCOPES)
-drive = build('drive', 'v3', credentials=drive_creds)
-
-# ---------- Excel Configuration ----------
-EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
-os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
-EXCEL_COLUMNS = [
-    "filename", "date_generated",
-    "posted_on_medium", "medium_date", "medium_url",
-    "posted_on_twitter", "twitter_date", "twitter_url",
-    "posted_on_linkedin", "linkedin_date", "linkedin_url"
-]
-
-
-def retrieve_file_from_drive_path(path_list: list, parent_id: str) -> bytes:
-
-    for i, segment in enumerate(path_list):
-        is_file = i == len(path_list) - 1
-        query = (
-            f"'{parent_id}' in parents and "
-            f"name = '{segment}' and "
-            f"mimeType {'!=' if is_file else '='} 'application/vnd.google-apps.folder' and "
-            "trashed = false"
-        )
-        result = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
-        items = result.get("files", [])
-        if not items:
-            raise FileNotFoundError(f"{'File' if is_file else 'Folder'} '{segment}' not found under parent ID '{parent_id}'")
-        parent_id = items[0]["id"]
-
-    request = drive.files().get_media(fileId=parent_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-
-    fh.seek(0)
-    return fh.read()
-
-def path_extractor(chosen_file: str, platform: str) -> list:
-    date_part = chosen_file.split('_')[0]
-    file_path = [date_part, platform, f"{platform}_{chosen_file}"]
-    return file_path
-
-def download_excel_from_drive():
-    file_id = ensure_excel_on_drive()
-    request = drive.files().get_media(fileId=file_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-    fh.seek(0)
-    df = pd.read_excel(fh, dtype={"medium_url": str})
-    return df, file_id
-
-def get_unpublished_filenames(platform):
-    df, _ = download_excel_from_drive()
-    required_cols = {"posted_on_medium", "posted_on_"+platform, "filename"}
-    if not required_cols.issubset(df.columns):
-        missing = required_cols - set(df.columns)
-        raise ValueError(f"Excel must contain columns: {', '.join(missing)}")
-    
-    mask = (
-        (df["posted_on_medium"] == True) &
-        (df[f"posted_on_{platform}"] == False)
-    )
-    # select only the two columns we want
-    result_df = df.loc[mask, ["filename", "medium_url"]]
-    
-    # return as list of dicts: [{"filename": ..., "medium_url": ...}, ...]
-    return result_df.to_dict(orient="records")
-
-# ---------- LinkedIn credentials (per ACTIVE_USER) ----------
 
 def post_to_linkedin(
     text_lines: List[str],
@@ -180,46 +85,25 @@ def post_to_linkedin(
 
     return response.json()
 
-def update_existing_entry(filename: str, updates: dict):
-    df, file_id = download_excel_from_drive()
-
-    if "filename" not in df.columns:
-        raise ValueError("Excel is missing 'filename' column.")
-
-    # Find the matching row
-    match = df["filename"] == filename
-    if not match.any():
-        raise ValueError(f"No entry found for filename: {filename}")
-
-    for key, value in updates.items():
-        df.loc[match, key] = value
-
-    # Save and upload
-    df.to_excel(EXCEL_PATH, index=False)
-    media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
-
-
-def ensure_excel_on_drive() -> str:
-    """Return file id of tracking Excel, creating it if missing."""
-    query = f"name = '{EXCEL_NAME}' and '{FOLDER_ID}' in parents"
-    res = drive.files().list(q=query, fields="files(id,name)", **LIST_KWARGS).execute()
-    files = res.get("files", [])
-    if files:
-        return files[0]["id"]
-
-    df_blank = pd.DataFrame({c: [] for c in EXCEL_COLUMNS})
-    df_blank.to_excel(EXCEL_PATH, index=False)
-    media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    meta = {"name": EXCEL_NAME, "parents": [FOLDER_ID]}
-    file = drive.files().create(body=meta, media_body=media, fields="id", **DRIVE_KWARGS).execute()
-    print(f"[INFO] Created tracking Excel on Drive (id={file['id']})")
-    return file["id"]
-
 def post_linkedin() -> dict:
+    # Import needed functions here to avoid circular import
+    from Utils.google_drive import (
+        update_existing_entry,
+        retrieve_file_from_drive_path,
+        path_extractor,
+        get_unpublished_filenames,
+        FOLDER_ID
+    )
+    
     # 2) Find target folder
     platform = 'linkedin'
-    unpublished_files = get_unpublished_filenames(platform)
+
+    # ------------------------------------------------------------------
+    # Restrict the LinkedIn publishing run to the *active* user so that
+    # Excel updates map to the correct row.
+    # ------------------------------------------------------------------
+    active_user: Optional[str] = os.getenv("ACTIVE_USER")
+    unpublished_files = get_unpublished_filenames(platform, employee_name=active_user)
     successes: list[dict] = []
     failures: list[dict] = []
 

@@ -30,12 +30,13 @@ def _run_with_logs(fn, *args, **kwargs):
 
 # --- Wrappers so LangChain can pass unused input without error ---
 
-def _generate_keywords_dynamic(seeds: str | None = None):
-    """Generate keywords.  If *seeds* provided (comma-separated) they override the default list."""
+def _generate_keywords_dynamic(seeds: str | None = None, output_file: str | None = None):
+    """Generate keywords.  If *seeds* provided (comma-separated) they override the default list.
+    If *output_file* provided, keywords will be written to that file instead of the default."""
     parsed = None
     if seeds:
         parsed = [s.strip() for s in seeds.split(",") if s.strip()]
-    return _run_with_logs(generate_keywords, parsed)
+    return _run_with_logs(generate_keywords, parsed, output_file=output_file)
 
 class _ContentArgs(BaseModel):
     keywords: str = Field(
@@ -81,6 +82,12 @@ class _KeywordArgs(BaseModel):
             "Optional comma-separated seed words. If omitted the built-in seed list is used."
         ),
     )
+    output_file: str = Field(
+        default="",
+        description=(
+            "Optional file path to save keywords. If omitted the default path is used."
+        ),
+    )
 
 TOOLS = [
     StructuredTool.from_function(
@@ -88,7 +95,8 @@ TOOLS = [
         func=_generate_keywords_dynamic,
         description=(
             "Generate trending keywords. Optionally provide a comma-separated list of seed words "
-            "to override the default internal seed list."
+            "to override the default internal seed list. You can also specify an output_file path "
+            "to save the keywords to a different location."
         ),
         args_schema=_KeywordArgs,
     ),

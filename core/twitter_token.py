@@ -8,7 +8,10 @@ import webbrowser
 import threading
 
 # Centralised credential access
-from core.credentials import user as _user_creds, save as _save_creds
+try:
+    from core.credentials import user as _user_creds, save as _save_creds  
+except ImportError:
+    from credentials import user as _user_creds, save as _save_creds
 
 # Keep dotenv for supplementary vars (e.g. OPENAI_API_KEY) but load AFTER we
 # patched env vars via the credentials module import above.
@@ -27,7 +30,7 @@ PORT = 8000
 STATE = secrets.token_urlsafe(16)
 
 # Resolve credentials for the active user (defaults to the first user key)
-twitter_credentials = _user_creds().get("twitter", {})
+twitter_credentials = _user_creds("ravi").get("twitter", {})
 
 CLIENT_ID     = twitter_credentials["client_id"]
 CLIENT_SECRET = twitter_credentials["client_secret"]   # if you're truly using PKCE you can leave this blank
@@ -92,7 +95,7 @@ def callback():
         print("Body:", resp.text)
 
     token_json = resp.json()
-
+    print(token_json)
     # Guard against missing access token to prevent KeyError
     if "access_token" not in token_json:
         # Return detailed error information to aid debugging
@@ -104,6 +107,9 @@ def callback():
     # Persist the refreshed token back into the shared credentials JSON
     twitter_credentials["access_token"] = token_json["access_token"]
     twitter_credentials["scope"] = token_json.get("scope", "")
+    # Also capture refresh_token if available
+    if "refresh_token" in token_json:
+        twitter_credentials["refresh_token"] = token_json["refresh_token"]
     _save_creds()
 
     # Gracefully stop the local dev server so Streamlit can continue
@@ -112,6 +118,67 @@ def callback():
         shutdown()
 
     return "✅ Authentication successful! Token saved. You may close this tab.", 200
+
+def refresh_token_auto():
+    """
+    Refreshes the Twitter access token using the stored refresh token without requiring reauthorization.
+    
+    This function uses the refresh token flow from Twitter's OAuth 2.0 implementation to get a new
+    access token when the current one expires. It requires that the 'offline.access' scope was
+    requested during the initial authorization.
+    
+    Returns:
+        bool: True if the refresh was successful, False otherwise
+    """
+    # Check if we have a refresh token
+    if "refresh_token" not in twitter_credentials:
+        print("No refresh token found. You must authorize with 'offline.access' scope first.")
+        return False
+        
+    # Prepare the request to refresh the token
+    token_url = "https://api.x.com/2/oauth2/token"
+    data = {
+        'grant_type': 'refresh_token',
+        'refresh_token': twitter_credentials["refresh_token"],
+        'client_id': CLIENT_ID,
+    }
+    
+    # Make the request
+    try:
+        # For confidential clients (with client secret), use basic auth
+        resp = requests.post(
+            token_url,
+            data=data,
+            auth=(CLIENT_ID, CLIENT_SECRET),
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+        
+        if not resp.ok:
+            print(f"Error refreshing token. Status: {resp.status_code}")
+            print(f"Response: {resp.text}")
+            return False
+            
+        token_json = resp.json()
+        
+        # Update the stored credentials
+        if "access_token" in token_json:
+            twitter_credentials["access_token"] = token_json["access_token"]
+            twitter_credentials["scope"] = token_json.get("scope", twitter_credentials.get("scope", ""))
+            
+            # Update refresh token if a new one was provided
+            if "refresh_token" in token_json:
+                twitter_credentials["refresh_token"] = token_json["refresh_token"]
+                
+            _save_creds()
+            print("Access token refreshed successfully")
+            return True
+        else:
+            print(f"No access token in response: {token_json}")
+            return False
+            
+    except Exception as e:
+        print(f"Exception while refreshing token: {str(e)}")
+        return False
 
 def refresh_twitter_token():
     # Launch Flask in a background thread so Streamlit doesn't block
@@ -125,8 +192,8 @@ def refresh_twitter_token():
     # flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
 
 def main():
-    webbrowser.open(str(TWITTER_LOCAL_SERVER))
-    flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
-
+    # webbrowser.open(str(TWITTER_LOCAL_SERVER))
+    # flaskApp.run(host="0.0.0.0", port=PORT, debug=True, use_reloader=False)
+    print(refresh_token_auto())
 if __name__ == '__main__':
     main()

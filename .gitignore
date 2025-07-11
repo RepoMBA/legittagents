@@ -19,3 +19,6 @@ Utils/file_mover.ipynb
 __pycache__/
 *.log
 *.DS_Store
+tests
+*.zip
+.DS_Store

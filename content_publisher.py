@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-Auto Content Publisher
+Content Publisher
 
-Automated script that runs the entire content workflow:
+This script handles the content creation workflow:
 1. Generate keywords (using provided seeds or defaults)
 2. Create content for the top keyword
 3. Publish to Medium
-4. Post to Twitter
-5. Post to LinkedIn
 
 Usage:
-    python auto_content_publisher.py [--seeds WORD1 WORD2 ...] [--schedule HH:MM] [--debug]
+    python content_publisher.py [--seeds SEED1,SEED2,...] [--schedule HH:MM] [--debug]
 
 Example:
-    python auto_content_publisher.py --seeds blockchain smart_contracts --schedule 10:00
+    python content_publisher.py --seeds "contract lifecycle management, smart contracts"
 """
 
 import os
@@ -31,27 +29,23 @@ from typing import List, Optional, Dict, Any, Tuple, Set
 from agent_tools import (
     _generate_keywords_dynamic as generate_keywords_func,
     _create_content_dynamic as create_content_func,
-    _publish_medium_dynamic as publish_medium_func,
-    _post_linkedin_wrapper as post_linkedin_func,
-    _post_twitter_wrapper as post_twitter_func,
-    refresh_twitter_token,
-    refresh_linkedin_token
+    _publish_medium_dynamic as publish_medium_func
 )
 from core import global_cfg
-from core.credentials import users, user
 from core.medium import get_unpublished_filenames
 from dotenv import load_dotenv
+from Utils.google_drive import add_new_article_entry, update_medium_article
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("auto_publisher.log"),
+        logging.FileHandler("content_publisher.log"),
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger("auto_publisher")
+logger = logging.getLogger("content_publisher")
 
 # Load environment variables and configuration
 load_dotenv()
@@ -59,7 +53,7 @@ global_config = global_cfg()
 DEFAULT_KEYWORDS_PATH = global_config["keywords_file"]
 KEYWORDS_JSON_PATH = DEFAULT_KEYWORDS_PATH  # Will be changed if seeds are provided
 
-# Global variable to track the current keyword being processed
+# Global variables
 CURRENT_KEYWORD = None
 DEBUG_MODE = False
 SKIP_STEPS: Set[str] = set()
@@ -69,15 +63,11 @@ RUN_ONLY_STEPS: Set[str] = set()
 STEP_GENERATE_KEYWORDS = "generate_keywords"
 STEP_CREATE_CONTENT = "create_content"
 STEP_PUBLISH_MEDIUM = "publish_medium"
-STEP_POST_TWITTER = "post_twitter"
-STEP_POST_LINKEDIN = "post_linkedin"
 
 ALL_STEPS = {
     STEP_GENERATE_KEYWORDS,
     STEP_CREATE_CONTENT,
-    STEP_PUBLISH_MEDIUM,
-    STEP_POST_TWITTER,
-    STEP_POST_LINKEDIN
+    STEP_PUBLISH_MEDIUM
 }
 
 def set_debug_mode(enabled=True):
@@ -155,180 +145,20 @@ def get_top_unused_keyword(file_path=None) -> Optional[str]:
     logger.info(f"Selected top keyword: {top_keyword} with interest score: {unused_keywords[0].get('avg_interest', 0)}")
     return top_keyword
 
-def is_auth_error(error_message: str) -> bool:
-    """Check if an error message indicates an authentication issue."""
-    auth_error_patterns = [
-        r"401", 
-        r"unauthorized",
-        r"auth.*fail",
-        r"invalid.*token",
-        r"expired.*token",
-        r"token.*expired",
-        r"authentication.*fail",
-        r"not.*authenticated",
-        r"auth.*error",
-        r"login.*required",
-        r"credentials.*invalid"
-    ]
-    
-    error_lower = error_message.lower()
-    for pattern in auth_error_patterns:
-        if re.search(pattern, error_lower):
-            return True
-    
-    return False
-
-def list_available_users():
-    """List all available users from the credentials file."""
-    available_users = list(users().keys())
-    
-    if not available_users:
-        print("No users found in credentials file.")
-        return
-    
-    print("\nAvailable users:")
-    print("----------------")
-    for i, user_id in enumerate(available_users, 1):
-        user_data = user(user_id)
-        platforms = []
-        if 'twitter' in user_data:
-            platforms.append("Twitter")
-        if 'linkedin' in user_data:
-            platforms.append("LinkedIn")
-        if 'medium' in user_data:
-            platforms.append("Medium")
-        
-        platforms_str = ", ".join(platforms) if platforms else "No platforms configured"
-        print(f"{i}. {user_id} ({platforms_str})")
-    print()
-
-def set_active_user(user_id: str):
-    """Set the active user for the current session."""
-    # This is just for logging purposes - the actual user selection
-    # happens when calling functions that use the credentials
-    logger.info(f"Using credentials for user: {user_id}")
-    
-    # Check if the user exists
-    try:
-        user_data = user(user_id)
-        platforms = []
-        if 'twitter' in user_data:
-            platforms.append("Twitter")
-        if 'linkedin' in user_data:
-            platforms.append("LinkedIn")
-        if 'medium' in user_data:
-            platforms.append("Medium")
-        
-        platforms_str = ", ".join(platforms) if platforms else "No platforms configured"
-        logger.info(f"User {user_id} has access to: {platforms_str}")
-        
-        # Set environment variable for other components that might use it
-        os.environ["ACTIVE_USER"] = user_id
-        return True
-    except KeyError:
-        logger.error(f"User '{user_id}' not found in credentials file.")
-        return False
-
-def post_to_twitter_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Dict]:
-    """Post to Twitter with automatic token refresh on auth failure."""
-    logger.info("Posting to Twitter...")
-    
-    # If user_id is provided, we need to set it in the environment
-    # so the underlying functions use the right credentials
-    if user_id:
-        os.environ["ACTIVE_USER"] = user_id
-    
-    try:
-        result = post_twitter_func()
-        logger.info("Posted to Twitter successfully")
-        return True, result
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error posting to Twitter: {error_msg}")
-        
-        # Check if this is an authentication error
-        if is_auth_error(error_msg):
-            logger.info("Detected Twitter authentication issue. Refreshing token...")
-            try:
-                refresh_twitter_token()
-                logger.info("Twitter token refreshed successfully. Retrying post...")
-                # Wait a moment for the token to be properly saved
-                time.sleep(3)
-                
-                # Retry the post
-                try:
-                    result = post_twitter_func()
-                    logger.info("Posted to Twitter successfully after token refresh")
-                    return True, result
-                except Exception as retry_e:
-                    logger.error(f"Failed to post to Twitter even after token refresh: {retry_e}")
-                    return False, {"status": "error", "message": str(retry_e)}
-                    
-            except Exception as refresh_e:
-                logger.error(f"Failed to refresh Twitter token: {refresh_e}")
-                return False, {"status": "error", "message": f"Twitter token refresh failed: {refresh_e}"}
-        
-        return False, {"status": "error", "message": error_msg}
-
-def post_to_linkedin_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Dict]:
-    """Post to LinkedIn with automatic token refresh on auth failure."""
-    logger.info("Posting to LinkedIn...")
-    
-    # If user_id is provided, we need to set it in the environment
-    # so the underlying functions use the right credentials
-    if user_id:
-        os.environ["ACTIVE_USER"] = user_id
-    
-    try:
-        result = post_linkedin_func()
-        logger.info("Posted to LinkedIn successfully")
-        return True, result
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error posting to LinkedIn: {error_msg}")
-        
-        # Check if this is an authentication error
-        if is_auth_error(error_msg):
-            logger.info("Detected LinkedIn authentication issue. Refreshing token...")
-            try:
-                refresh_linkedin_token()
-                logger.info("LinkedIn token refreshed successfully. Retrying post...")
-                # Wait a moment for the token to be properly saved
-                time.sleep(3)
-                
-                # Retry the post
-                try:
-                    result = post_linkedin_func()
-                    logger.info("Posted to LinkedIn successfully after token refresh")
-                    return True, result
-                except Exception as retry_e:
-                    logger.error(f"Failed to post to LinkedIn even after token refresh: {retry_e}")
-                    return False, {"status": "error", "message": str(retry_e)}
-                    
-            except Exception as refresh_e:
-                logger.error(f"Failed to refresh LinkedIn token: {refresh_e}")
-                return False, {"status": "error", "message": f"LinkedIn token refresh failed: {refresh_e}"}
-        
-        return False, {"status": "error", "message": error_msg}
-
-def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = None) -> bool:
+def run_workflow(seeds: Optional[List[str]] = None) -> bool:
     """
-    Run the full content workflow from keywords to social posting.
-    Returns True if successful, False if any step fails.
+    Run the content creation workflow from keywords to Medium publishing.
     
     Args:
         seeds: Optional list of seed words for keyword generation
-        user_id: Optional user ID to use for credentials
+    
+    Returns:
+        bool: True if successful, False otherwise
     """
     try:
         logger.info("=" * 60)
-        logger.info("STARTING AUTOMATED CONTENT WORKFLOW")
+        logger.info("STARTING CONTENT CREATION WORKFLOW")
         logger.info("=" * 60)
-        
-        # Set active user if provided
-        if user_id:
-            if not set_active_user(user_id):
-                return False
         
         # Set up the keywords path - use a temporary file if seeds are provided
         global KEYWORDS_JSON_PATH
@@ -447,6 +277,15 @@ def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = Non
                 return False
                 
             logger.info("Content created successfully")
+            
+            # Extract filename and add to tracking sheet
+            try:
+                filename = content_result.get("filename", "")
+                if filename:
+                    article_id = add_new_article_entry(filename, keyword)
+                    logger.info(f"Added article entry with ID {article_id}")
+            except Exception as e:
+                logger.error(f"Failed to add article entry: {e}")
         
         # STEP 4: Publish to Medium
         if should_skip_step(STEP_PUBLISH_MEDIUM):
@@ -480,24 +319,19 @@ def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = Non
                 return False
                 
             logger.info("Published to Medium successfully")
-        
-        # STEP 5: Post to Twitter with auto-refresh
-        if should_skip_step(STEP_POST_TWITTER):
-            logger.info(f"SKIPPING: {STEP_POST_TWITTER}")
-        else:
-            success, twitter_result = post_to_twitter_with_retry(user_id)
-            if not success:
-                logger.error(f"Twitter posting failed even after token refresh attempt: {twitter_result}")
-                return False
-        
-        # STEP 6: Post to LinkedIn with auto-refresh
-        if should_skip_step(STEP_POST_LINKEDIN):
-            logger.info(f"SKIPPING: {STEP_POST_LINKEDIN}")
-        else:
-            success, linkedin_result = post_to_linkedin_with_retry(user_id)
-            if not success:
-                logger.error(f"LinkedIn posting failed even after token refresh attempt: {linkedin_result}")
-                return False
+            
+            # Update tracking with Medium URL
+            try:
+                medium_url = medium_result.get("url", "")
+                if medium_url:
+                    update_medium_article(filename, {
+                        "medium_url": medium_url,
+                        "posted_medium": True,
+                        "date": datetime.now().strftime("%Y-%m-%d")
+                    })
+                    logger.info(f"Updated article entry with Medium URL: {medium_url}")
+            except Exception as e:
+                logger.error(f"Failed to update article entry: {e}")
         
         # Cleanup temporary file if created, but first append its keywords to the default file
         try:
@@ -581,13 +415,13 @@ def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = Non
         logger.error(traceback.format_exc())
         return False
 
-def scheduled_run(seeds: Optional[List[str]] = None, user_id: Optional[str] = None):
+def scheduled_run(seeds: Optional[List[str]] = None):
     """Function to be called by the scheduler."""
     logger.info(f"Running scheduled workflow at {datetime.now().strftime('%H:%M:%S')}")
-    run_workflow(seeds, user_id)
+    run_workflow(seeds)
 
 def main():
-    parser = argparse.ArgumentParser(description="Automated Content Creation and Publishing")
+    parser = argparse.ArgumentParser(description="Content Creation and Publishing to Medium")
     parser.add_argument("--seeds", nargs="+", help="Seed words for keyword generation (words separated by commas, or multiple words treated as one seed)")
     parser.add_argument("--schedule", help="Schedule time in HH:MM format (24-hour)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with verbose logging")
@@ -598,16 +432,8 @@ def main():
                       help="Skip specific steps (use with --debug). Available steps: " + ", ".join(ALL_STEPS))
     run_skip_group.add_argument("--run", nargs="+", choices=list(ALL_STEPS),
                       help="Run only specific steps (inverse of --skip). Available steps: " + ", ".join(ALL_STEPS))
-                      
-    parser.add_argument("--user", help="User ID to use for credentials")
-    parser.add_argument("--list-users", action="store_true", help="List all available users from credentials file")
     
     args = parser.parse_args()
-    
-    # Handle --list-users flag first
-    if args.list_users:
-        list_available_users()
-        sys.exit(0)
     
     if args.debug:
         set_debug_mode(True)
@@ -621,15 +447,6 @@ def main():
     if args.run:
         set_run_only_steps(args.run)
     
-    # Validate user if provided
-    if args.user:
-        try:
-            user(args.user)  # This will raise KeyError if user doesn't exist
-        except KeyError:
-            print(f"Error: User '{args.user}' not found in credentials file.")
-            print("Use --list-users to see available users.")
-            sys.exit(1)
-    
     seed_words = None
     if args.seeds:
         # Join all arguments into a single string and then split by commas
@@ -640,7 +457,7 @@ def main():
         else:
             # If no commas, treat the entire string as one seed
             seed_words = [seed_input.strip()]
-
+        
         if seed_words:
             logger.info(f"Using seed words: {', '.join(seed_words)}")
     
@@ -652,7 +469,7 @@ def main():
                 raise ValueError("Invalid time")
                 
             logger.info(f"Scheduling workflow to run daily at {args.schedule}")
-            schedule.every().day.at(args.schedule).do(scheduled_run, seeds=seed_words, user_id=args.user)
+            schedule.every().day.at(args.schedule).do(scheduled_run, seeds=seed_words)
             
             logger.info("Scheduler started. Press Ctrl+C to exit.")
             while True:
@@ -663,7 +480,7 @@ def main():
             sys.exit(1)
     else:
         # Run immediately
-        success = run_workflow(seed_words, args.user)
+        success = run_workflow(seed_words)
         sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

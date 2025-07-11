@@ -60,6 +60,7 @@ __all__ = [
 # Locate and load the credentials JSON once at import time
 # ---------------------------------------------------------------------------
 _env_path = os.getenv("CREDENTIALS_FILE")
+ACTIVE_USER = os.getenv("ACTIVE_USER")
 if _env_path and _env_path.strip():
     _DEFAULT_PATH = Path(_env_path)
 else:
@@ -86,7 +87,8 @@ def users() -> Mapping[str, Any]:
 
 
 def _default_user_id() -> str:
-    return "user" or next(iter(users().keys()))
+    """Return the current *ACTIVE_USER* env var (if set) otherwise the first user in the JSON."""
+    return os.getenv("ACTIVE_USER") or next(iter(users().keys()))
 
 
 def user(user_id: str | None = None) -> MutableMapping[str, Any]:
@@ -153,8 +155,7 @@ def save() -> None:
 if __name__ == "__main__":
     # print(users())
     print(_default_user_id())
-    print('medium', user()['medium'], "\n")    
-    print('medium', user('shresth')['medium'], "\n")    
-    print(users().keys())
+    print('google', google(), "\n")
+    print('users', users().keys())
     
     # print('global_cfg', global_cfg())   
