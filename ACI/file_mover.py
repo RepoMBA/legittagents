@@ -16,7 +16,7 @@ TO_BE_PROCESSED = DATABASE_PATH / "To_Be_Processed"
 PROCESSING = DATABASE_PATH / "Processing"
 PROCESSED = DATABASE_PATH / "Processed"
 LOG_FOLDER = TO_BE_PROCESSED / "move_logs" 
-TODAY_STR = datetime.today().strftime("%Y%m%d%H%M%S")
+TODAY_STR = datetime.today().strftime("%Y-%m-%d_%H-%M")
 DATE_STR = datetime.today().strftime("%d/%m/%y %H:%M:%S")
 
 
@@ -38,10 +38,10 @@ def log_move(filename: str, reg_no: str, log_callback=None):
     log_dir = LOG_FOLDER
     log_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now()
-    today_str = now.strftime("%Y%m%d")  # Only the date part for log file name
+    today_str = now.strftime("%Y-%m-%d_%H-%M")  # Use consistent format
     date_str = now.strftime("%d/%m/%y %H:%M:%S")
-    log_file = LOG_FOLDER / f"{today_str}.log"  # Log file named as today's date
-    log_message = f"{filename} from folder {reg_no} moved to processing folder {today_str} on date {date_str}\n"
+    log_file = LOG_FOLDER / f"{TODAY_STR}.log"  # Log file named with consistent format
+    log_message = f"{filename} from folder {reg_no} moved to processing folder {TODAY_STR} on date {date_str}\n"
     with log_file.open("a") as log:
         log.write(log_message)
     if log_callback:
@@ -254,10 +254,9 @@ def get_original_reg_no(folder_path: Path, filename: str) -> str:
 
 if __name__ == "__main__":
     reg_nos_to_move = [
-        "9H-SLD",
+        "9H-SLH",
         # Add more reg_nos as needed
     ]
-    move_multiple_files(reg_nos_to_move, datetime.today().strftime("%Y%m%d%H%M%S"))
+    move_multiple_files(reg_nos_to_move, TODAY_STR)
     # Use the current timestamp for today's folder
-    today_str = datetime.today().strftime("%Y%m%d%H%M%S")
-    process_pdf_folder(today_str)
+    process_pdf_folder(TODAY_STR)
