@@ -239,7 +239,7 @@ def post_to_twitter_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Dic
         os.environ["ACTIVE_USER"] = user_id
     
     try:
-        result = post_twitter_func()
+        result = post_twitter_func(user_id)
         logger.info("Posted to Twitter successfully")
         return True, result
     except Exception as e:
@@ -257,7 +257,7 @@ def post_to_twitter_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Dic
                 
                 # Retry the post
                 try:
-                    result = post_twitter_func()
+                    result = post_twitter_func(user_id)
                     logger.info("Posted to Twitter successfully after token refresh")
                     return True, result
                 except Exception as retry_e:
@@ -311,14 +311,17 @@ def post_to_linkedin_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Di
         
         return False, {"status": "error", "message": error_msg}
 
-def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = None) -> bool:
+def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = None, browser_type: str = "chromium") -> bool:
     """
-    Run the full content workflow from keywords to social posting.
-    Returns True if successful, False if any step fails.
+    Run the complete workflow from keyword generation to social media posting.
     
     Args:
         seeds: Optional list of seed words for keyword generation
         user_id: Optional user ID to use for credentials
+        browser_type: Browser to use for Medium publishing ("chromium" or "firefox")
+    
+    Returns:
+        bool: True if successful, False otherwise
     """
     try:
         logger.info("=" * 60)
@@ -473,7 +476,7 @@ def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = Non
                 filename = unpublished[0]
             
             # Publish to Medium
-            medium_result = publish_medium_func(filename)
+            medium_result = publish_medium_func(filename=filename, browser_type=browser_type)
             
             if "error" in medium_result or medium_result.get("status") == "error":
                 logger.error(f"Medium publishing failed: {medium_result}")
@@ -581,16 +584,19 @@ def run_workflow(seeds: Optional[List[str]] = None, user_id: Optional[str] = Non
         logger.error(traceback.format_exc())
         return False
 
-def scheduled_run(seeds: Optional[List[str]] = None, user_id: Optional[str] = None):
+def scheduled_run(seeds: Optional[List[str]] = None, user_id: Optional[str] = None, browser_type: str = "chromium"):
     """Function to be called by the scheduler."""
     logger.info(f"Running scheduled workflow at {datetime.now().strftime('%H:%M:%S')}")
-    run_workflow(seeds, user_id)
+    run_workflow(seeds, user_id, browser_type)
 
 def main():
-    parser = argparse.ArgumentParser(description="Automated Content Creation and Publishing")
-    parser.add_argument("--seeds", nargs="+", help="Seed words for keyword generation (words separated by commas, or multiple words treated as one seed)")
+    parser = argparse.ArgumentParser(description="Auto Content Publisher")
+    parser.add_argument("--seeds", help="Comma-separated list of seed words for keyword generation")
     parser.add_argument("--schedule", help="Schedule time in HH:MM format (24-hour)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with verbose logging")
+    parser.add_argument("--user", help="User ID to use for credentials (optional)")
+    parser.add_argument("--browser", choices=["chromium", "firefox"], default="chromium", 
+                      help="Browser to use for Medium publishing (chromium or firefox)")
     
     # Create a mutually exclusive group for run and skip
     run_skip_group = parser.add_mutually_exclusive_group()
@@ -598,16 +604,8 @@ def main():
                       help="Skip specific steps (use with --debug). Available steps: " + ", ".join(ALL_STEPS))
     run_skip_group.add_argument("--run", nargs="+", choices=list(ALL_STEPS),
                       help="Run only specific steps (inverse of --skip). Available steps: " + ", ".join(ALL_STEPS))
-                      
-    parser.add_argument("--user", help="User ID to use for credentials")
-    parser.add_argument("--list-users", action="store_true", help="List all available users from credentials file")
     
     args = parser.parse_args()
-    
-    # Handle --list-users flag first
-    if args.list_users:
-        list_available_users()
-        sys.exit(0)
     
     if args.debug:
         set_debug_mode(True)
@@ -621,28 +619,9 @@ def main():
     if args.run:
         set_run_only_steps(args.run)
     
-    # Validate user if provided
-    if args.user:
-        try:
-            user(args.user)  # This will raise KeyError if user doesn't exist
-        except KeyError:
-            print(f"Error: User '{args.user}' not found in credentials file.")
-            print("Use --list-users to see available users.")
-            sys.exit(1)
-    
-    seed_words = None
+    seeds = None
     if args.seeds:
-        # Join all arguments into a single string and then split by commas
-        seed_input = " ".join(args.seeds)
-        if "," in seed_input:
-            # If commas are present, split by commas
-            seed_words = [s.strip() for s in seed_input.split(",") if s.strip()]
-        else:
-            # If no commas, treat the entire string as one seed
-            seed_words = [seed_input.strip()]
-
-        if seed_words:
-            logger.info(f"Using seed words: {', '.join(seed_words)}")
+        seeds = [s.strip() for s in args.seeds.split(",") if s.strip()]
     
     if args.schedule:
         try:
@@ -652,7 +631,7 @@ def main():
                 raise ValueError("Invalid time")
                 
             logger.info(f"Scheduling workflow to run daily at {args.schedule}")
-            schedule.every().day.at(args.schedule).do(scheduled_run, seeds=seed_words, user_id=args.user)
+            schedule.every().day.at(args.schedule).do(scheduled_run, seeds=seeds, user_id=args.user, browser_type=args.browser)
             
             logger.info("Scheduler started. Press Ctrl+C to exit.")
             while True:
@@ -663,7 +642,7 @@ def main():
             sys.exit(1)
     else:
         # Run immediately
-        success = run_workflow(seed_words, args.user)
+        success = run_workflow(seeds=seeds, user_id=args.user, browser_type=args.browser)
         sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

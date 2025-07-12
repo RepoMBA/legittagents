@@ -225,7 +225,7 @@ def post_to_twitter_with_retry(user_id: Optional[str] = None, article_id: Option
             logger.info("Twitter token refreshed. Retrying post...")
             
             # Second attempt after token refresh
-            retry_result = post_twitter_func()
+            retry_result = post_twitter_func(user_id)
             published = retry_result.get("published", []) if isinstance(retry_result, dict) else []
             failed = retry_result.get("failed", []) if isinstance(retry_result, dict) else []
             
@@ -268,7 +268,7 @@ def post_to_linkedin_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Di
         os.environ["ACTIVE_USER"] = user_id
     
     try:
-        result = post_linkedin_func()
+        result = post_linkedin_func(user_id)
         published = result.get("published", []) if isinstance(result, dict) else []
         failed    = result.get("failed", [])    if isinstance(result, dict) else []
 
@@ -310,7 +310,7 @@ def post_to_linkedin_with_retry(user_id: Optional[str] = None) -> Tuple[bool, Di
                 
                 # Retry the post
                 try:
-                    result = post_linkedin_func()
+                    result = post_linkedin_func(user_id)
                     published = result.get("published", []) if isinstance(result, dict) else []
                     failed    = result.get("failed", [])    if isinstance(result, dict) else []
 

@@ -44,6 +44,7 @@ def move_file(reg_no: str, today_str: str, log_callback=None):
     """
     Moves all files from to_be_processed/[REG_NO]/ to processing/[TODAY'S_DATE]/
     and logs the move. Deletes the source folder after moving.
+    Creates a mapping file to remember original reg_no for each file.
     """
     src_folder = TO_BE_PROCESSED / reg_no
     if not src_folder.exists():
@@ -51,15 +52,27 @@ def move_file(reg_no: str, today_str: str, log_callback=None):
 
     dest_folder = get_today_folder(today_str)
     files_moved = []
+    
+    # Create/update mapping file to store original reg_no for each file
+    mapping_file = dest_folder / "file_reg_mapping.txt"
+    
     for src_file in src_folder.iterdir():
         if src_file.is_file():
             shutil.copy2(str(src_file), str(dest_folder / src_file.name))
             log_move(src_file.name, reg_no, log_callback=log_callback)
             files_moved.append(src_file.name)
+            
+            # Store mapping of filename to original reg_no
+            with mapping_file.open("a") as mapping:
+                mapping.write(f"{src_file.name}:{reg_no}\n")
     
     # Delete the source folder after moving all files
-    shutil.rmtree(src_folder)
-    msg = f"Moved files {files_moved} from {reg_no} to {dest_folder} and deleted source folder."
+    try:
+        shutil.rmtree(src_folder)
+        msg = f"Moved files {files_moved} from {reg_no} to {dest_folder} and deleted source folder."
+    except Exception as e:
+        msg = f"Moved files {files_moved} from {reg_no} to {dest_folder}. Warning: Could not delete source folder - {e}"
+    
     print(msg)
     if log_callback:
         log_callback(msg + "\n")
@@ -104,12 +117,20 @@ def process_pdf_folder(date_folder: str, log_callback=None):
         log.write(f"Started processing at {date_str}\n")
         for pdf_file in pdf_files:
             try:
+                # Get original reg_no for this file
+                original_reg_no = get_original_reg_no(folder_path, pdf_file.name)
+                
                 data = extract_data_from_pdf(pdf_file)
+                
+                # Override EnquiryNo with original reg_no if available
+                if original_reg_no:
+                    data['EnquiryNo'] = original_reg_no
+                
                 extracted_data.append(data)
                 success_files.append(pdf_file.name)
-                log.write(f"Processed: {pdf_file.name}\n")
+                log.write(f"Processed: {pdf_file.name} (EnquiryNo: {original_reg_no})\n")
                 if log_callback:
-                    log_callback(f"Processed: {pdf_file.name}\n")
+                    log_callback(f"Processed: {pdf_file.name} (EnquiryNo: {original_reg_no})\n")
             except Exception as e:
                 err_msg = f"Error reading {pdf_file.name}: {e}\n"
                 failed_files.append(pdf_file.name)
@@ -146,6 +167,24 @@ def process_pdf_folder(date_folder: str, log_callback=None):
 
     excel_dest_path = dest_path / "combined_data.xlsx"
     return dest_path, excel_dest_path
+
+def get_original_reg_no(folder_path: Path, filename: str) -> str:
+    """
+    Reads the file_reg_mapping.txt to get the original registration number
+    for a given filename.
+    """
+    mapping_file = folder_path / "file_reg_mapping.txt"
+    if not mapping_file.exists():
+        return None
+    
+    with mapping_file.open("r") as mapping:
+        for line in mapping:
+            line = line.strip()
+            if ":" in line:
+                file_name, reg_no = line.split(":", 1)
+                if file_name == filename:
+                    return reg_no
+    return None
 
 
 if __name__ == "__main__":
