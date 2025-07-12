@@ -134,7 +134,7 @@ def post_twitter(user_id) -> dict:
     }
 
 def main():
-    post_twitter()
+    post_twitter("ravi")
 
 if __name__ == "__main__":
     main()

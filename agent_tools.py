@@ -57,10 +57,15 @@ class _PublishArgs(BaseModel):
         default="",
         description="Exact filename to publish on Medium (e.g. 2024-06-30_smart_contracts.txt). If omitted, a random unpublished draft is chosen.",
     )
+    browser_type: str = Field(
+        default="chromium",
+        description="Browser to use for automation. Options: \"chromium\" or \"firefox\". Defaults to \"chromium\".",
+    )
 
-def _publish_medium_dynamic(filename: str = ""):
+def _publish_medium_dynamic(filename: str = "", browser_type: str = "chromium"):
     arg = filename.strip() or None
-    return _run_with_logs(publish_medium, arg)
+    browser = browser_type.lower() if browser_type.lower() in ["chromium", "firefox"] else "chromium"
+    return _run_with_logs(publish_medium, arg, browser)
 
 def _post_linkedin_wrapper(*_args, **_kwargs):
     return _run_with_logs(post_linkedin())

@@ -28,7 +28,7 @@ def extract_text(pdf_path):
             text += page.get_text()
     return text
 
-def parse_fields(text):
+def parse_fields(text, pdf_path=None):
     """
     Parse required fields from the extracted text.
     Adjust regex patterns as needed for your PDF format.
@@ -68,6 +68,12 @@ def parse_fields(text):
             val = None
         data[field] = val
     
+    # Extract enquiry number from parent folder name
+    if pdf_path:
+        import os
+        parent_folder = os.path.basename(os.path.dirname(pdf_path))
+        data['EnquiryNo'] = parent_folder
+    
     m = re.search(r'Total\s+[0-9]+\s+([0-9]+)\s+([0-9]+)', text)
     if m:
         second = int(m.group(1))   # 11220
@@ -84,14 +90,14 @@ def parse_fields(text):
 def data_retriever(pdf_path):
     raw_text = extract_text(pdf_path)
     # print(raw_text[:900])
-    result = parse_fields(raw_text)
+    result = parse_fields(raw_text, pdf_path)
     return result
     
 
 def main(pdf_path):
     raw_text = extract_text(pdf_path)
     print(raw_text[:1200])
-    result = parse_fields(raw_text)
+    result = parse_fields(raw_text, pdf_path)
     print("Extracted Fields Dictionary:")
     for key, val in result.items():
         print(f"{key}: {val}")

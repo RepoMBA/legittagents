@@ -415,12 +415,14 @@ def create_social_post_entries(article_id: int, medium_url: str) -> int:
     
     return len(new_posts)
 
-def publish_medium(filename: str | None = None):
+def publish_medium(filename: str | None = None, browser_type: str = "chromium"):
     """Publish unpublished draft(s) to Medium.
 
     Args:
         filename: If provided, publish only that file; otherwise publish **all** files
                   in the *articles* sheet where ``posted_medium`` is ``False``.
+        browser_type: Browser to use for automation. Options: "chromium" or "firefox".
+                     Defaults to "chromium".
 
     Returns:
         • When *filename* supplied → dict with publish details for that single draft.
@@ -471,7 +473,14 @@ def publish_medium(filename: str | None = None):
 
         # -------- Post using Playwright --------
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=False)
+            # Launch the selected browser
+            if browser_type.lower() == "firefox":
+                browser = pw.firefox.launch(headless=False)
+                print(f"[INFO] Using Firefox browser")
+            else:
+                browser = pw.chromium.launch(headless=False)
+                print(f"[INFO] Using Chromium browser")
+                
             ctx     = browser.new_context()
             page    = ctx.new_page()
 

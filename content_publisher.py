@@ -145,12 +145,13 @@ def get_top_unused_keyword(file_path=None) -> Optional[str]:
     logger.info(f"Selected top keyword: {top_keyword} with interest score: {unused_keywords[0].get('avg_interest', 0)}")
     return top_keyword
 
-def run_workflow(seeds: Optional[List[str]] = None) -> bool:
+def run_workflow(seeds: Optional[List[str]] = None, browser_type: str = "chromium") -> bool:
     """
-    Run the content creation workflow from keywords to Medium publishing.
+    Run the content creation workflow.
     
     Args:
         seeds: Optional list of seed words for keyword generation
+        browser_type: Browser to use for Medium publishing ("chromium" or "firefox")
     
     Returns:
         bool: True if successful, False otherwise
@@ -312,7 +313,7 @@ def run_workflow(seeds: Optional[List[str]] = None) -> bool:
                 filename = unpublished[0]
             
             # Publish to Medium
-            medium_result = publish_medium_func(filename)
+            medium_result = publish_medium_func(filename, browser_type)
             
             if "error" in medium_result or medium_result.get("status") == "error":
                 logger.error(f"Medium publishing failed: {medium_result}")
@@ -421,10 +422,12 @@ def scheduled_run(seeds: Optional[List[str]] = None):
     run_workflow(seeds)
 
 def main():
-    parser = argparse.ArgumentParser(description="Content Creation and Publishing to Medium")
-    parser.add_argument("--seeds", nargs="+", help="Seed words for keyword generation (words separated by commas, or multiple words treated as one seed)")
+    parser = argparse.ArgumentParser(description="Content Publisher Tool")
+    parser.add_argument("--seeds", help="Comma-separated list of seed words for keyword generation")
     parser.add_argument("--schedule", help="Schedule time in HH:MM format (24-hour)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with verbose logging")
+    parser.add_argument("--browser", choices=["chromium", "firefox"], default="chromium", 
+                      help="Browser to use for Medium publishing (chromium or firefox)")
     
     # Create a mutually exclusive group for run and skip
     run_skip_group = parser.add_mutually_exclusive_group()
@@ -447,19 +450,9 @@ def main():
     if args.run:
         set_run_only_steps(args.run)
     
-    seed_words = None
+    seeds = None
     if args.seeds:
-        # Join all arguments into a single string and then split by commas
-        seed_input = " ".join(args.seeds)
-        if "," in seed_input:
-            # If commas are present, split by commas
-            seed_words = [s.strip() for s in seed_input.split(",") if s.strip()]
-        else:
-            # If no commas, treat the entire string as one seed
-            seed_words = [seed_input.strip()]
-        
-        if seed_words:
-            logger.info(f"Using seed words: {', '.join(seed_words)}")
+        seeds = [s.strip() for s in args.seeds.split(",") if s.strip()]
     
     if args.schedule:
         try:
@@ -469,7 +462,7 @@ def main():
                 raise ValueError("Invalid time")
                 
             logger.info(f"Scheduling workflow to run daily at {args.schedule}")
-            schedule.every().day.at(args.schedule).do(scheduled_run, seeds=seed_words)
+            schedule.every().day.at(args.schedule).do(run_workflow, seeds=seeds, browser_type=args.browser)
             
             logger.info("Scheduler started. Press Ctrl+C to exit.")
             while True:
@@ -480,7 +473,7 @@ def main():
             sys.exit(1)
     else:
         # Run immediately
-        success = run_workflow(seed_words)
+        success = run_workflow(seeds=seeds, browser_type=args.browser)
         sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
