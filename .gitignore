@@ -16,4 +16,9 @@ Utils/file_mover.ipynb
 *.ipynb_checkpoints
 *.ipynb
 *.pyc
-
+__pycache__/
+*.log
+*.DS_Store
+tests
+*.zip
+.DS_Store

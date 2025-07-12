@@ -1,33 +1,28 @@
 import os
-import json
 import secrets
 import threading
 import webbrowser
 import requests
-import socket
-import contextlib
 import urllib.parse
 
 from urllib.parse import urlencode
 from flask import Flask, redirect, request
+# Centralised credential handling
+from core.credentials import user as _user_creds, save as _save_creds
+
+# Load .env after credentials so user overrides still win
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────
-CREDENTIALS_FILE    = os.getenv("CREDENTIALS_FILE")
-if not os.path.exists(str(CREDENTIALS_FILE)):
-    raise FileNotFoundError(f"No such file: {CREDENTIALS_FILE}")
-with open(str(CREDENTIALS_FILE)) as f:
-    creds = json.load(f)
-user = creds["users"][0]
-linkedin_credentials = user["linkedin"]
+linkedin_credentials = _user_creds().get("linkedin", {})
 CLIENT_ID     = linkedin_credentials["client_id"]
 CLIENT_SECRET = linkedin_credentials["client_secret"]   # if you're truly using PKCE you can leave this blank
 REDIRECT_URL  = linkedin_credentials["redirect_url"]
 
 
-LINKEDIN_LOCAL_SERVER = linkedin_credentials["local_server"]
+LINKEDIN_LOCAL_SERVER = linkedin_credentials.get("local_server", "http://localhost:8001/")
 
 # Determine scopes – fall back to sensible defaults if missing/empty in creds
 DEFAULT_SCOPES = [
@@ -100,7 +95,7 @@ def callback():
     )
     resp.raise_for_status()
     token_data = resp.json()
-    
+    print(token_data)
     access_token = token_data["access_token"]
 
     headers = {
@@ -115,11 +110,16 @@ def callback():
     author_urn = f"urn:li:person:{member_id}"
     token_data["author_urn"] = author_urn
     
-
-    # 4) save to disk
-    with open(str(CREDENTIALS_FILE), "w") as f:
-        json.dump(token_data, f, indent=2)
-
+    # 4) persist to credentials JSON under current user
+    linkedin_credentials.update({
+        "access_token": access_token,
+        "scope": token_data.get("scope", ""),
+        "author_urn": author_urn,
+        "expires_in": token_data.get("expires_in", 0),
+        "token_type": token_data.get("token_type", ""),
+        "id_token": token_data.get("id_token", ""),
+    })
+    _save_creds()
 
     # 5) shut down the dev server
     shutdown = request.environ.get("werkzeug.server.shutdown")
@@ -135,9 +135,6 @@ def callback():
 
 
 def refresh_linkedin_token():
-    # Ensure token directory exists
-    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
-
     threading.Thread(
         target=lambda: app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False),
         daemon=True,
@@ -146,8 +143,6 @@ def refresh_linkedin_token():
 
 
 def main():
-    os.makedirs(os.path.dirname(str(CREDENTIALS_FILE)) or ".", exist_ok=True)
-
     # Run Flask in the main thread (blocking) so the process stays alive when
     # this script is executed directly from the command line.
     webbrowser.open("http://localhost:8001/auth/linkedin")

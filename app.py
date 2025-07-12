@@ -15,6 +15,9 @@ import json as _json
 from core.medium import get_unpublished_filenames
 import urllib.parse
 import webbrowser
+from core import global_cfg
+
+global_cfg = global_cfg()
 
 # --- LLM providers: OpenAI → Gemini → DeepSeek ---
 
@@ -48,16 +51,16 @@ def build_llm(provider_priority: list[str]):
                 ),
                 "openai",
             )
-        if prov == "gemini" and os.getenv("GOOGLE_API_KEY") and ChatGoogleGenerativeAI:
+        if prov == "gemini" and os.getenv("GEMINI_API_KEY") and ChatGoogleGenerativeAI:
             return (
                 ChatGoogleGenerativeAI(
                     model="gemini-pro",
-                    google_api_key=SecretStr(getenv_required("GOOGLE_API_KEY")),
+                    google_api_key=SecretStr(getenv_required("GEMINI_API_KEY")),
                 ),
                 "gemini",
             )
         if prov == "deepseek" and ChatDeepSeek is not None:
-            return (ChatDeepSeek(model_name="deepseek-chat"), "deepseek")
+            return (ChatDeepSeek(model_name="deepseek-chat", api_key=SecretStr(getenv_required("DEEPSEEK_API_KEY"))), "deepseek")
     raise RuntimeError("No suitable LLM provider configured. Provide API keys or install DeepSeek.")
 
 # initial provider list
@@ -103,7 +106,7 @@ for msg in st.session_state.history:
 
 # ------------ CUSTOM DASHBOARD CONTROLS -------------------
 
-KEYWORDS_JSON_PATH = os.getenv("KEYWORDS_FILE", "./keywords.json")
+KEYWORDS_JSON_PATH = global_cfg["keywords_file"]
 
 st.sidebar.header("🛠️ Tools Panel")
 SIDEBAR_MIN_PX = 340

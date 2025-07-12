@@ -13,10 +13,15 @@ from googleapiclient.http import MediaFileUpload
 from googleapiclient.http import MediaIoBaseDownload
 from dotenv import load_dotenv
 import random
-from typing import Optional
+from typing import Optional, Dict, List, Any, Tuple
+from core.credentials import google, global_cfg
 
+gcreds      = google()
+global_cfg  = global_cfg()
 
 load_dotenv()
+
+# ---------- Helper Functions ----------
 
 def getenv_required(name: str) -> str:
     v: Optional[str] = os.getenv(name)
@@ -24,34 +29,39 @@ def getenv_required(name: str) -> str:
         raise RuntimeError(f"{name} is not set")
     return v
 
-# === CONFIGURATION ===
-openai.api_key          = getenv_required("OPENAI_API_KEY")
-KEYWORDS_FILE           = getenv_required("KEYWORDS_FILE")
-
-SERVICE_ACCOUNT_FILE    = getenv_required("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_FOLDER_ID         = getenv_required("DRIVE_FOLDER_ID")
-DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
-
-DATABASE                = getenv_required("BLOG_CONTENT_DATABASE")
-EXCEL_NAME              = getenv_required("EXCEL_NAME")
+# ---------- Global Configuration ----------
+openai.api_key          = os.getenv("OPENAI_API_KEY")
+KEYWORDS_FILE           = global_cfg["keywords_file"]
+DATABASE                = global_cfg["blog_content_database"]
+EXCEL_NAME              = global_cfg["excel_name"]
+DEMO_LINK               = global_cfg["demo_link"]
 EXCEL_PATH              = os.path.join(DATABASE, EXCEL_NAME)
 
-# Column schema for the tracking spreadsheet used across all publishing scripts
-EXCEL_COLUMNS = [
-    "filename", "date_generated",
-    "posted_on_medium", "medium_date", "medium_url",
-    "posted_on_twitter", "twitter_date", "twitter_url",
-    "posted_on_linkedin", "linkedin_date", "linkedin_url"
+# Define column structures for the sheets - matching create_excel_structure.py
+ARTICLES_COLUMNS = [
+    "id", "filename", "date", "posted_medium", "keyword", "medium_url"
 ]
 
-DEMO_LINK               = getenv_required("DEMO_LINK")
+SOCIAL_ACCOUNTS_COLUMNS = [
+    "id", "employee_name", "platform"
+]
+
+SOCIAL_POSTS_COLUMNS = [
+    "id", "employee_name", "platform", "article_id", "posted", "post_date", "post_url"
+]
 
 DENSITY_MIN    = 0.02
 DENSITY_MAX    = 0.03
 WORD_COUNT_MIN = 400
 WORD_COUNT_MAX = 500
 
-SHARED_DRIVE_ID        = getenv_required("SHARED_DRIVE_ID")
+# ---------- Drive Configuration ----------
+
+SERVICE_ACCOUNT_FILE    = gcreds["service_account_json"]
+DRIVE_FOLDER_ID         = gcreds["drive_folder_id"]
+DRIVE_SCOPE             = [gcreds["drive_scope"]]
+SHARED_DRIVE_ID         = gcreds["shared_drive_id"]
+
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -66,7 +76,7 @@ today = datetime.now().strftime("%d-%m-%y")  # e.g. "16-Jun-2025"
 excel_date = datetime.now().strftime("%Y-%m-%d")
 date_slug = datetime.now().strftime("%d-%m-%y")
 
-# === HELPERS ===
+# ---------- Helper Functions ----------
 
 DEBUG = True
 
@@ -247,39 +257,131 @@ def generate_summary(text: str, platform: str) -> str:
     log(f"Generated {platform} summary")
     return fixed_text
 
-def update_excel(metadata: dict):
+def download_excel_from_drive() -> Tuple[Dict[str, pd.DataFrame], str]:
+    """
+    Download the Excel file from Drive and return a dictionary of dataframes,
+    one for each sheet, and the file ID.
+    """
+    # Check if the Excel file exists on Drive
     query = f"name = '{EXCEL_NAME}' and '{DRIVE_FOLDER_ID}' in parents"
     result = drive.files().list(q=query, fields="files(id, name)", **LIST_KWARGS).execute()
     files = result.get("files", [])
 
     if files:
+        # Download the existing Excel file
         file_id = files[0]["id"]
         request = drive.files().get_media(fileId=file_id)
-        with open(EXCEL_PATH, "wb") as fh:
-            downloader = MediaIoBaseDownload(fh, request)
-            done = False
-            while done is False:
-                status, done = downloader.next_chunk()
-
-        df = pd.read_excel(EXCEL_PATH)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.seek(0)
+        
+        # Read all sheets into a dictionary of dataframes
+        excel_data = pd.read_excel(fh, sheet_name=None)
+        return excel_data, file_id
     else:
-        # Create a blank DataFrame with the predefined schema
-        df = pd.DataFrame({c: [] for c in EXCEL_COLUMNS})
-        file_id = None
+        # Create a new Excel file with the three-sheet structure
+        # Create empty dataframes with correct column types
+        articles_df = pd.DataFrame({
+            "id": pd.Series(dtype="int"),
+            "filename": pd.Series(dtype="str"),
+            "date": pd.Series(dtype="str"),
+            "posted_medium": pd.Series(dtype="bool"),
+            "keyword": pd.Series(dtype="str"),
+            "medium_url": pd.Series(dtype="str")
+        })
 
-    # Ensure the incoming metadata matches the expected schema; fill missing columns with None
-    record = {col: metadata.get(col) for col in EXCEL_COLUMNS}
-    df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+        social_accounts_df = pd.DataFrame({
+            "id": pd.Series(dtype="int"),
+            "employee_name": pd.Series(dtype="str"),
+            "platform": pd.Series(dtype="str")
+        })
 
-    df.to_excel(EXCEL_PATH, index=False)
+        social_posts_df = pd.DataFrame({
+            "id": pd.Series(dtype="int"),
+            "employee_name": pd.Series(dtype="str"),
+            "platform": pd.Series(dtype="str"),
+            "article_id": pd.Series(dtype="int"),
+            "posted": pd.Series(dtype="bool"),
+            "post_date": pd.Series(dtype="str"),
+            "post_url": pd.Series(dtype="str")
+        })
 
+        # Create dictionary of dataframes
+        excel_data = {
+            'articles': articles_df,
+            'social_accounts': social_accounts_df,
+            'social_posts': social_posts_df
+        }
+        
+        return excel_data, ""  # Empty file_id indicates new file needs to be created
+
+def get_next_article_id() -> int:
+    """Get the next available ID for articles"""
+    excel_data, _ = download_excel_from_drive()
+    
+    if 'articles' not in excel_data or excel_data['articles'].empty:
+        return 1
+    
+    if 'id' not in excel_data['articles'].columns:
+        return 1
+    
+    return int(excel_data['articles']['id'].max() + 1)
+
+def update_excel(article_metadata: dict):
+    """
+    Update the Excel file with new article information.
+    
+    Args:
+        article_metadata: Dictionary containing article information like filename, date, keyword
+    """
+    excel_data, file_id = download_excel_from_drive()
+    
+    # Check if we need to create a new Excel file
+    if not file_id:
+        file_id = ""  # Ensure it's a string for later checks
+    
+    # Ensure the 'articles' sheet exists
+    if 'articles' not in excel_data:
+        # Create a DataFrame with empty data but with the correct column structure
+        excel_data['articles'] = pd.DataFrame({col: [] for col in ARTICLES_COLUMNS})
+    
+    # Get the next article ID
+    next_id = get_next_article_id()
+    
+    # Create the article record
+    article_record = {
+        "id": next_id,
+        "filename": article_metadata.get("filename", ""),
+        "date": article_metadata.get("date", excel_date),
+        "posted_medium": article_metadata.get("posted_medium", False),
+        "keyword": article_metadata.get("keyword", ""),
+        "medium_url": article_metadata.get("medium_url", "")
+    }
+    
+    # Add the new article to the articles sheet
+    articles_df = excel_data['articles']
+    articles_df = pd.concat([articles_df, pd.DataFrame([article_record])], ignore_index=True)
+    excel_data['articles'] = articles_df
+    
+    # Write all sheets to the Excel file
+    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+        for sheet_name, df in excel_data.items():
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    
+    # Upload the updated Excel file to Drive
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if file_id:
         drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
+        log("Excel file updated on Drive")
     else:
         file_metadata = {"name": EXCEL_NAME, "parents": [DRIVE_FOLDER_ID]}
-        drive.files().create(body=file_metadata, media_body=media, fields="id", **DRIVE_KWARGS).execute()
-    log("Excel file updated on Drive")
+        new_file = drive.files().create(body=file_metadata, media_body=media, fields="id", **DRIVE_KWARGS).execute()
+        log(f"New Excel file created on Drive with ID: {new_file['id']}")
+    
+    return next_id  # Return the article ID for reference
 
 def create_content(keywords: list[str] | None = None) -> dict:
     # --- Health check: verify Google Drive API connectivity ---
@@ -329,19 +431,20 @@ def create_content(keywords: list[str] | None = None) -> dict:
             upload_to_drive(sum_path, folder_ids[platform])
             log(f"Uploaded {platform} summary for '{kw}'")
 
-        update_excel({
+        # Update Excel with the new article information
+        article_id = update_excel({
             "filename": generate_filename(kw, platform=""),
-            "date_generated": excel_date,
-            "posted_on_medium": False,
-            "posted_on_twitter": False,
-            "posted_on_linkedin": False,
+            "date": excel_date,
+            "posted_medium": False,
+            "keyword": kw,
         })
-        log(f"Metadata recorded for '{kw}' in Excel")
+        log(f"Article recorded with ID {article_id} for '{kw}' in Excel")
 
         # Mark keyword as used in keywords.json so UI hides/flags it next time
         _mark_keyword_used(kw)
 
         summaries.append({
+            "article_id": article_id,
             "keyword": kw,
             "medium_file": fname,
             "twitter_file": generate_filename(kw, platform="twitter"),

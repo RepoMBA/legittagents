@@ -10,24 +10,25 @@ import requests
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
 import random
-from typing import Tuple, cast
+from typing import Tuple, cast, Dict, List, Optional, Any
+from core.credentials import google, global_cfg
 
-# Load environment variables
-load_dotenv()
+gcreds = google()                 # → plain dict
+global_cfg = global_cfg()
 
-# ---------- Configuration ----------
-GOOGLE_EMAIL         = os.getenv("GOOGLE_EMAIL")
-GOOGLE_PASSWORD      = os.getenv("GOOGLE_PASSWORD")
 
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
-DRIVE_SCOPE             = ['https://www.googleapis.com/auth/drive']
-DRIVE_FOLDER_ID: str = os.getenv("DRIVE_FOLDER_ID") or ""
+# ---------- Global Configuration ----------
 
-DATABASE: str = os.getenv("BLOG_CONTENT_DATABASE") or "./Database"
-EXCEL_NAME: str = os.getenv("EXCEL_NAME") or "published_articles.xlsx"
-EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
+DATABASE: str = global_cfg["blog_content_database"]
+EXCEL_NAME: str = global_cfg["excel_name"]
 
-SHARED_DRIVE_ID        = os.getenv("SHARED_DRIVE_ID")
+# ---------- Drive Configuration ----------
+GOOGLE_EMAIL         = gcreds["google_email"]
+GOOGLE_PASSWORD      = gcreds["google_password"]
+SERVICE_ACCOUNT_FILE = gcreds["service_account_json"]
+DRIVE_SCOPE             = [gcreds["drive_scope"]]
+DRIVE_FOLDER_ID: str = gcreds["drive_folder_id"]
+SHARED_DRIVE_ID        = gcreds["shared_drive_id"]
 DRIVE_KWARGS: dict[str, object] = {"supportsAllDrives": True}
 LIST_KWARGS: dict[str, object] = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
 if SHARED_DRIVE_ID:
@@ -38,17 +39,22 @@ creds = service_account.Credentials.from_service_account_file(
     scopes=DRIVE_SCOPE
 )
 drive = build("drive", "v3", credentials=creds)
-# -------------------------------------
 
-# Ensure the local Excel directory exists
+# ---------- Excel Configuration ----------
+EXCEL_PATH: str = os.path.join(DATABASE, EXCEL_NAME)
 os.makedirs(os.path.dirname(EXCEL_PATH) or '.', exist_ok=True)
 
-# Columns to use when bootstrapping a brand-new sheet
-EXCEL_COLUMNS = [
-    "filename", "date_generated",
-    "posted_on_medium", "medium_date", "medium_url",
-    "posted_on_twitter", "twitter_date", "twitter_url",
-    "posted_on_linkedin", "linkedin_date", "linkedin_url"
+# Define column structures for the sheets - matching create_excel_structure.py
+ARTICLES_COLUMNS = [
+    "id", "filename", "date", "posted_medium", "keyword", "medium_url"
+]
+
+SOCIAL_ACCOUNTS_COLUMNS = [
+    "id", "employee_name", "platform"
+]
+
+SOCIAL_POSTS_COLUMNS = [
+    "id", "employee_name", "platform", "article_id", "posted", "post_date", "post_url"
 ]
 
 def ensure_excel_on_drive() -> str:
@@ -62,9 +68,39 @@ def ensure_excel_on_drive() -> str:
     if files:
         return files[0]["id"]
 
-    # --- bootstrap a fresh sheet ---
-    df_blank = pd.DataFrame({c: [] for c in EXCEL_COLUMNS})
-    df_blank.to_excel(EXCEL_PATH, index=False)
+    # --- bootstrap a fresh sheet with the three-sheet structure ---
+    # Create empty dataframes with correct column types
+    articles_df = pd.DataFrame({
+        "id": pd.Series(dtype="int"),
+        "filename": pd.Series(dtype="str"),
+        "date": pd.Series(dtype="str"),
+        "posted_medium": pd.Series(dtype="bool"),
+        "keyword": pd.Series(dtype="str"),
+        "medium_url": pd.Series(dtype="str")
+    })
+
+    social_accounts_df = pd.DataFrame({
+        "id": pd.Series(dtype="int"),
+        "employee_name": pd.Series(dtype="str"),
+        "platform": pd.Series(dtype="str")
+    })
+
+    social_posts_df = pd.DataFrame({
+        "id": pd.Series(dtype="int"),
+        "employee_name": pd.Series(dtype="str"),
+        "platform": pd.Series(dtype="str"),
+        "article_id": pd.Series(dtype="int"),
+        "posted": pd.Series(dtype="bool"),
+        "post_date": pd.Series(dtype="str"),
+        "post_url": pd.Series(dtype="str")
+    })
+
+    # Write to Excel with all three sheets
+    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+        articles_df.to_excel(writer, sheet_name='articles', index=False)
+        social_accounts_df.to_excel(writer, sheet_name='social_accounts', index=False)
+        social_posts_df.to_excel(writer, sheet_name='social_posts', index=False)
+
     media = MediaFileUpload(
         EXCEL_PATH,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -121,7 +157,15 @@ def _retry(fn, attempts: int = 3, delay: float = 1.0):
                 continue
             raise
 
-def download_excel_from_drive() -> Tuple[pd.DataFrame, str]:
+def download_excel_from_drive() -> Tuple[Dict[str, pd.DataFrame], str]:
+    """
+    Download the Excel file from Drive and return a dictionary of dataframes,
+    one for each sheet, and the file ID.
+    
+    Returns:
+        Tuple[Dict[str, pd.DataFrame], str]: A tuple containing the dictionary of dataframes
+        (one per sheet) and the file ID.
+    """
     def _download():
         file_id = ensure_excel_on_drive()
         request = drive.files().get_media(fileId=file_id)
@@ -131,16 +175,77 @@ def download_excel_from_drive() -> Tuple[pd.DataFrame, str]:
         while not done:
             status, done = downloader.next_chunk()
         fh.seek(0)
-        df = pd.read_excel(fh, dtype={"medium_url": str})
-        return df, file_id
+        
+        # Read all sheets into a dictionary of dataframes
+        excel_data = pd.read_excel(fh, sheet_name=None)
+        
+        # Return the dictionary of dataframes and the file ID
+        return excel_data, file_id
 
-    return cast(Tuple[pd.DataFrame, str], _retry(_download))
+    return cast(Tuple[Dict[str, pd.DataFrame], str], _retry(_download))
 
-def get_unpublished_filenames():
-    df, _ = download_excel_from_drive()
-    if "posted_on_medium" not in df.columns or "filename" not in df.columns:
-        raise ValueError("Excel must contain 'posted_on_medium' and 'filename' columns.")
-    return df[df["posted_on_medium"] == False]["filename"].tolist()
+def get_unpublished_filenames() -> List[str]:
+    """
+    Get a list of filenames from the articles sheet where posted_medium is False
+    """
+    excel_data, _ = download_excel_from_drive()
+    
+    # Check if we have the articles sheet
+    if 'articles' not in excel_data:
+        raise ValueError("Excel file must contain an 'articles' sheet.")
+    
+    articles_df = excel_data['articles']
+    
+    # Check if necessary columns exist
+    if "posted_medium" not in articles_df.columns or "filename" not in articles_df.columns:
+        raise ValueError("Articles sheet must contain 'posted_medium' and 'filename' columns.")
+    
+    # Get unpublished filenames
+    return articles_df[articles_df["posted_medium"] == False]["filename"].tolist()
+
+def get_next_social_post_id() -> int:
+    """Return the next integer ID for the *social_posts* sheet.
+
+    Robust against cases where the ``id`` column exists but contains
+    only *NaN* / non-numeric entries (which would make ``max()`` return
+    *NaN* and crash when cast to ``int``)."""
+
+    excel_data, _ = download_excel_from_drive()
+
+    # If the sheet is missing or empty → 1
+    if 'social_posts' not in excel_data:
+        return 1
+
+    social_posts_df = excel_data['social_posts']
+    if social_posts_df.empty or 'id' not in social_posts_df.columns:
+        return 1
+
+    # Convert to numeric, coercing errors to NaN, then drop NaN rows
+    numeric_ids = pd.to_numeric(social_posts_df['id'], errors='coerce')
+    numeric_ids_series = numeric_ids.dropna()  # type: ignore[attr-defined]
+    if numeric_ids_series.empty:  # type: ignore[attr-defined]
+        return 1
+
+    return int(numeric_ids_series.max()) + 1  # type: ignore[call-arg]
+
+def get_article_id_by_filename(filename: str) -> Optional[int]:
+    """Get the article ID for a given filename"""
+    excel_data, _ = download_excel_from_drive()
+    
+    if 'articles' not in excel_data:
+        raise ValueError("Excel file must contain an 'articles' sheet.")
+    
+    articles_df = excel_data['articles']
+    
+    if "id" not in articles_df.columns or "filename" not in articles_df.columns:
+        raise ValueError("Articles sheet must contain 'id' and 'filename' columns.")
+    
+    matching_rows = articles_df[articles_df["filename"] == filename]
+    
+    if matching_rows.empty:
+        return None
+    
+    return int(matching_rows.iloc[0]["id"])
 
 def shorten_url(url):
     response = requests.get(f"http://tinyurl.com/api-create.php?url={url}")
@@ -213,103 +318,203 @@ def post_to_medium(page, title: str, content: str):
     return article_url
 
 
-def update_existing_entry(filename: str, updates: dict):
-    df, file_id = download_excel_from_drive()
-
-    if "filename" not in df.columns:
-        raise ValueError("Excel is missing 'filename' column.")
+def update_article_entry(filename: str, updates: dict):
+    """Update an article entry in the articles sheet"""
+    excel_data, file_id = download_excel_from_drive()
+    
+    if 'articles' not in excel_data:
+        raise ValueError("Excel file must contain an 'articles' sheet.")
+    
+    articles_df = excel_data['articles']
+    
+    if "filename" not in articles_df.columns:
+        raise ValueError("Articles sheet is missing 'filename' column.")
 
     # Find the matching row
-    match = df["filename"] == filename
+    match = articles_df["filename"] == filename
     if not match.any():
         raise ValueError(f"No entry found for filename: {filename}")
 
+    # Update the article entry
     for key, value in updates.items():
-        df.loc[match, key] = value
+        articles_df.loc[match, key] = value
 
     # Save and upload
-    df.to_excel(EXCEL_PATH, index=False)
+    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+        articles_df.to_excel(writer, sheet_name='articles', index=False)
+        
+        # Preserve other sheets
+        for sheet_name, df in excel_data.items():
+            if sheet_name != 'articles':
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+    
     media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
 
-def publish_medium(filename: str | None = None) -> dict:
+def create_social_post_entries(article_id: int, medium_url: str) -> int:
+    """
+    Create social post entries for all social accounts in the social_accounts sheet
+    for the given article
+    
+    Args:
+        article_id: The ID of the article
+        medium_url: The URL of the Medium post
+        
+    Returns:
+        int: The number of social post entries created
+    """
+    excel_data, file_id = download_excel_from_drive()
+    
+    if 'social_accounts' not in excel_data or 'social_posts' not in excel_data:
+        raise ValueError("Excel file must contain 'social_accounts' and 'social_posts' sheets.")
+    
+    social_accounts_df = excel_data['social_accounts']
+    social_posts_df = excel_data['social_posts']
+    
+    # Check if necessary columns exist
+    required_columns = ['id', 'employee_name', 'platform']
+    for col in required_columns:
+        if col not in social_accounts_df.columns:
+            raise ValueError(f"Social accounts sheet missing required column: {col}")
+    
+    # Get the next available ID for social posts
+    next_id = get_next_social_post_id()
+    
+    # Create new entries for all social accounts
+    new_posts = []
+    for _, account in social_accounts_df.iterrows():
+        new_post = {
+            "id": next_id,
+            "employee_name": account["employee_name"],
+            "platform": account["platform"],
+            "article_id": article_id,
+            "posted": False,
+            "post_date": "",
+            "post_url": ""
+        }
+        new_posts.append(new_post)
+        next_id += 1
+    
+    # Add the new posts to the dataframe
+    if new_posts:
+        new_posts_df = pd.DataFrame(new_posts)
+        social_posts_df = pd.concat([social_posts_df, new_posts_df], ignore_index=True)
+    
+    # Save and upload
+    with pd.ExcelWriter(EXCEL_PATH, engine='openpyxl') as writer:
+        # Write all sheets
+        for sheet_name, df in excel_data.items():
+            if sheet_name != 'social_posts':
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        # Write the updated social_posts sheet
+        social_posts_df.to_excel(writer, sheet_name='social_posts', index=False)
+    
+    media = MediaFileUpload(EXCEL_PATH, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    drive.files().update(fileId=file_id, media_body=media, **DRIVE_KWARGS).execute()
+    
+    return len(new_posts)
 
-    # 2) Find target folder
+def publish_medium(filename: str | None = None):
+    """Publish unpublished draft(s) to Medium.
+
+    Args:
+        filename: If provided, publish only that file; otherwise publish **all** files
+                  in the *articles* sheet where ``posted_medium`` is ``False``.
+
+    Returns:
+        • When *filename* supplied → dict with publish details for that single draft.
+        • When *filename* omitted  → list[dict] of the above for every published draft.
+    """
+
+    # 1) Identify unpublished drafts via the articles sheet
     unpublished_files = get_unpublished_filenames()
     if not unpublished_files:
         print("No drafts pending for Medium.")
         return {"status": "nothing_to_publish"}
 
-    print("Files not yet posted to Medium:")
-    for idx, name in enumerate(unpublished_files, 1):
-        print(f"{idx}. {name}")
-
+    # If a specific filename is requested validate it, else publish all
     if filename:
         if filename not in unpublished_files:
             print(f"[ERROR] Requested filename '{filename}' not found in unpublished drafts.")
             return {"status": "invalid_selection"}
-        chosen_file = filename
-        print(f"[INFO] User-selected draft: {chosen_file}")
+        files_to_publish = [filename]
+        print(f"[INFO] User-selected draft: {filename}")
     else:
-        choice = random.randint(1, len(unpublished_files))
-        chosen_file = unpublished_files[choice - 1]
-        print(f"[INFO] Randomly selected draft #{choice}: {chosen_file}")
+        # Default behaviour: publish only the FIRST unpublished draft
+        chosen_file = unpublished_files[0]
+        files_to_publish = [chosen_file]
+        print(f"[INFO] Will publish first draft: {chosen_file}")
 
-    file_path = path_extractor(chosen_file, 'medium')
+    results: list[dict] = []
 
-    if not DRIVE_FOLDER_ID:
-        raise RuntimeError("DRIVE_FOLDER_ID env var is missing")
-    raw = retrieve_file_from_drive_path(file_path, DRIVE_FOLDER_ID)
-    text = raw.decode('utf-8').splitlines()
+    for chosen_file in files_to_publish:
+        print(f"\n[INFO] Publishing: {chosen_file}")
 
-    # 6) Extract title (first non-empty, strip leading "# ", then remove any "**")
-    title = ""
-    for line in text:
-        if line.strip():
-            title = line.lstrip('# ').strip().replace("**", "")
-            break
+        # Build Drive path for the markdown draft
+        file_path = path_extractor(chosen_file, 'medium')
 
-    # 7) Build body MD (skip the first line) and strip all "**"
-    body_txt = "\n".join(text[1:]).replace("**", "")
+        if not DRIVE_FOLDER_ID:
+            raise RuntimeError("DRIVE_FOLDER_ID env var is missing")
 
-    # 8) Launch Playwright & run
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=False)
-        ctx     = browser.new_context()
-        page    = ctx.new_page()
+        raw = retrieve_file_from_drive_path(file_path, DRIVE_FOLDER_ID)
+        text = raw.decode('utf-8').splitlines()
 
-        login_medium(page)
-        print("✅ Logged in.")
-        article_url =  post_to_medium(page, title, body_txt)
-        # article_url = 'https://medium.com/@shresth.kansal/unlocking-business-opportunities-with-smart-contracts-a-guide-for-entrepreneurs-d2815c961229'
-        medium_url = shorten_url(article_url)
-        print(f"✅ Published: {title!r}")
+        # -------- Prepare title & body --------
+        title = ""
+        for line in text:
+            if line.strip():
+                title = line.lstrip('# ').strip().replace("**", "")
+                break
 
-        # --------------- new: capture URL & log to Excel ---------------
-        
-        print(f"This is the URL:{article_url}")
-        updates = {
-            "posted_on_medium": True,
-            "medium_date": datetime.now().strftime("%Y-%m-%d"),
-            "medium_url": medium_url,
-        }
-        update_existing_entry(filename = chosen_file, updates = updates)
-        print(f"✅ Excel Updated")
+        body_txt = "\n".join(text[1:]).replace("**", "")
 
+        # -------- Post using Playwright --------
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=False)
+            ctx     = browser.new_context()
+            page    = ctx.new_page()
 
-        ctx.close()
-        browser.close()
+            login_medium(page)
+            print("✅ Logged in.")
+            article_url = post_to_medium(page, title, body_txt)
+            medium_url  = shorten_url(article_url)
+            print(f"✅ Published: {title!r}")
 
-    return {
-        "status": "published",
-        "file": chosen_file,
-        "title": title,
-        "url": medium_url,
-    }
+            # Update the article entry in Excel
+            updates = {
+                "posted_medium": True,
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "medium_url": medium_url,
+            }
+            update_article_entry(filename=chosen_file, updates=updates)
+            print("✅ Articles sheet updated")
+
+            # Create social-post tasks
+            article_id = get_article_id_by_filename(chosen_file)
+            if article_id is not None:
+                num_posts = create_social_post_entries(article_id, medium_url)
+                print(f"✅ Created {num_posts} social post entries")
+            else:
+                print("❌ Failed to find article ID, social post entries not created")
+
+            ctx.close()
+            browser.close()
+
+        results.append({
+            "status": "published",
+            "file": chosen_file,
+            "title": title,
+            "url": medium_url,
+        })
+
+    # ------ Return results ------
+    if len(results) == 1:
+        return results[0]
+    return results
 
 def main():
-    publish_medium()
-
+    print(get_unpublished_filenames())
 
 if __name__ == "__main__":
     main()
