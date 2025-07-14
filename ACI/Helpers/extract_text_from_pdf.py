@@ -2,8 +2,8 @@ import fitz  # PyMuPDF
 import re
 import json
 
-FLIGHT_CODES = './ACI/Database/flightCode.json'
-PDF_PATH = './ACI/Database/To_Be_Processed/9H-SLD/9H-SLD004311.pdf'
+FLIGHT_CODES = '/home/ubuntu/proj/legittagents/ACI/Database/flightCode.json'
+PDF_PATH = '/home/ubuntu/proj/legittagents/ACI/Database/To_Be_Processed/9H-SLD/9H-SLD004311.pdf'
 
 with open(FLIGHT_CODES) as f:
     code_map = json.load(f)
