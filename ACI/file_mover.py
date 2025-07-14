@@ -1,15 +1,20 @@
 import shutil
 from pathlib import Path
 from datetime import datetime
+import shutil
+from pathlib import Path
+from datetime import datetime
 import pandas as pd
-from Helper.extract_pdf_to_excel import data_retriever as extract_data_from_pdf
-from config import DATABASE_DIRECTORY
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
-DATABASE_DIR = Path(DATABASE_DIRECTORY)
-TO_BE_PROCESSED = DATABASE_DIR / "To_Be_Processed"
-PROCESSING = DATABASE_DIR / "Processing"
-PROCESSED = DATABASE_DIR / "Processed"
+DATABASE_PATH = Path("/home/ubuntu/proj/legittagents/ACI/Database")
+TO_BE_PROCESSED = DATABASE_PATH / "To_Be_Processed"
+PROCESSING = DATABASE_PATH / "Processing"
+PROCESSED = DATABASE_PATH / "Processed"
 LOG_FOLDER = TO_BE_PROCESSED / "move_logs" 
 TODAY_STR = datetime.today().strftime("%Y-%m-%d_%H-%M")
 DATE_STR = datetime.today().strftime("%d/%m/%y %H:%M:%S")
@@ -21,7 +26,6 @@ def init_directories():
     LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 
 init_directories()
-
 
 def get_today_folder(today_str: str) -> Path:
     """Returns the processing folder path for the given date string, creating it if necessary."""
@@ -94,12 +98,68 @@ def move_multiple_files(reg_no_list, today_str: str, log_callback=None):
             if log_callback:
                 log_callback(err_msg + "\n")
 
+def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
+    # 1) Copy, parse & sort by date
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
+    df = df.sort_values(date_col).reset_index(drop=True)
+
+    # 2) Filter out no‐takeoff flights
+    valid = df[df[dep_col] != df[arr_col]].copy()
+    valid_indices = valid.index.tolist()
+    n = len(valid_indices)
+
+    # 3) Prepare positional rotation series and a single global counter
+    rotations = pd.Series(0, index=range(n), dtype=int)
+    global_rotation = 0
+    i = 0
+
+    # 4) Walk through valid flights, closing or abandoning loops immediately
+    while i < n:
+        start_dep = valid.iloc[i][dep_col]
+        current_rot = global_rotation + 1
+
+        loop_positions = [i]
+        last_arr = valid.iloc[i][arr_col]
+        j = i + 1
+
+        # Continue as long as next departure matches the last arrival
+        while j < n and valid.iloc[j][dep_col] == last_arr:
+            loop_positions.append(j)
+            last_arr = valid.iloc[j][arr_col]
+            if last_arr == start_dep:
+                # closed this loop
+                break
+            j += 1
+
+        # Assign the same rotation number to all collected legs
+        for pos in loop_positions:
+            rotations.at[pos] = current_rot
+
+        # Bump the global counter
+        global_rotation = current_rot
+
+        # Advance i:
+        # – If we closed the loop (last_arr == start_dep), skip past the closer
+        # – Otherwise (chain‐break), abandon immediately and start at j
+        if j < n and last_arr == start_dep:
+            i = j + 1
+        else:
+            i = j
+
+    # 5) Map back into the original DataFrame
+    df['Rotation'] = 0
+    for pos, orig_idx in enumerate(valid_indices):
+        df.loc[orig_idx, 'Rotation'] = rotations.at[pos]
+
+    return df
+
+
 
 def process_pdf_folder(date_folder: str, log_callback=None):
     """
     Processes all PDFs in the specified date folder (format: DD-MM-YY),
     saves a single Excel file, appends to local log, and moves the folder.
-    Returns a tuple: (destination folder path, excel file path)
     """
     folder_path = PROCESSING / date_folder
     if not folder_path.exists():
@@ -144,10 +204,12 @@ def process_pdf_folder(date_folder: str, log_callback=None):
 
     # Write to Excel
     df = pd.DataFrame(extracted_data)
+    df = assign_rotations(df)
     excel_path = folder_path / "combined_data.xlsx"
+    df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
     df.to_excel(excel_path, index=False)
 
-    # Append summary to local log file
+   # Append summary to local log file
     now = datetime.now()
     date_str = now.strftime("%d/%m/%y %H:%M:%S")
     summary_message = (
