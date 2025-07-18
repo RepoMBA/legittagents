@@ -1,12 +1,9 @@
 import shutil
 from pathlib import Path
 from datetime import datetime
-import shutil
-from pathlib import Path
-from datetime import datetime
 import pandas as pd
 import sys
-from pathlib import Path
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
@@ -103,18 +100,21 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
     df = df.sort_values(date_col).reset_index(drop=True)
-
-    # 2) Filter out no‐takeoff flights
+    
+    # 2) Add Status column based on takeoff status
+    df['Status'] = df.apply(lambda row: 'Cancelled' if row[dep_col] == row[arr_col] else 'Completed', axis=1)
+    
+    # 3) Filter out no‐takeoff flights
     valid = df[df[dep_col] != df[arr_col]].copy()
     valid_indices = valid.index.tolist()
     n = len(valid_indices)
 
-    # 3) Prepare positional rotation series and a single global counter
+    # 4) Prepare positional rotation series and a single global counter
     rotations = pd.Series(0, index=range(n), dtype=int)
     global_rotation = 0
     i = 0
 
-    # 4) Walk through valid flights, closing or abandoning loops immediately
+    # 5) Walk through valid flights, closing or abandoning loops immediately
     while i < n:
         start_dep = valid.iloc[i][dep_col]
         current_rot = global_rotation + 1
@@ -147,7 +147,7 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
         else:
             i = j
 
-    # 5) Map back into the original DataFrame
+    # 6) Map back into the original DataFrame
     df['Rotation'] = 0
     for pos, orig_idx in enumerate(valid_indices):
         df.loc[orig_idx, 'Rotation'] = rotations.at[pos]
@@ -254,7 +254,7 @@ def get_original_reg_no(folder_path: Path, filename: str) -> str:
 
 if __name__ == "__main__":
     reg_nos_to_move = [
-        "9H-SLH",
+        "9H-SLD",
         # Add more reg_nos as needed
     ]
     move_multiple_files(reg_nos_to_move, TODAY_STR)
