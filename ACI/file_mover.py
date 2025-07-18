@@ -2,11 +2,12 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
-from Helper.extract_pdf_to_excel import data_retriever as extract_data_from_pdf
-from config import DATABASE_DIRECTORY
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
-DATABASE_DIR = Path(DATABASE_DIRECTORY)
+DATABASE_DIR = Path("./ACI/Database")
 TO_BE_PROCESSED = DATABASE_DIR / "To_Be_Processed"
 PROCESSING = DATABASE_DIR / "Processing"
 PROCESSED = DATABASE_DIR / "Processed"
@@ -159,7 +160,6 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     """
     Processes all PDFs in the specified date folder (format: DD-MM-YY),
     saves a single Excel file, appends to local log, and moves the folder.
-    Returns a tuple: (destination folder path, excel file path)
     """
     folder_path = PROCESSING / date_folder
     if not folder_path.exists():
@@ -204,10 +204,12 @@ def process_pdf_folder(date_folder: str, log_callback=None):
 
     # Write to Excel
     df = pd.DataFrame(extracted_data)
+    df = assign_rotations(df)
     excel_path = folder_path / "combined_data.xlsx"
+    df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
     df.to_excel(excel_path, index=False)
 
-    # Append summary to local log file
+   # Append summary to local log file
     now = datetime.now()
     date_str = now.strftime("%d/%m/%y %H:%M:%S")
     summary_message = (
