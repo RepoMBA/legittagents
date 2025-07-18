@@ -94,6 +94,66 @@ def move_multiple_files(reg_no_list, today_str: str, log_callback=None):
             if log_callback:
                 log_callback(err_msg + "\n")
 
+def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
+    # 1) Copy, parse & sort by date
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
+    df = df.sort_values(date_col).reset_index(drop=True)
+    
+    # 2) Add Status column based on takeoff status
+    df['Status'] = df.apply(lambda row: 'Cancelled' if row[dep_col] == row[arr_col] else 'Completed', axis=1)
+    
+    # 3) Filter out no‐takeoff flights
+    valid = df[df[dep_col] != df[arr_col]].copy()
+    valid_indices = valid.index.tolist()
+    n = len(valid_indices)
+
+    # 4) Prepare positional rotation series and a single global counter
+    rotations = pd.Series(0, index=range(n), dtype=int)
+    global_rotation = 0
+    i = 0
+
+    # 5) Walk through valid flights, closing or abandoning loops immediately
+    while i < n:
+        start_dep = valid.iloc[i][dep_col]
+        current_rot = global_rotation + 1
+
+        loop_positions = [i]
+        last_arr = valid.iloc[i][arr_col]
+        j = i + 1
+
+        # Continue as long as next departure matches the last arrival
+        while j < n and valid.iloc[j][dep_col] == last_arr:
+            loop_positions.append(j)
+            last_arr = valid.iloc[j][arr_col]
+            if last_arr == start_dep:
+                # closed this loop
+                break
+            j += 1
+
+        # Assign the same rotation number to all collected legs
+        for pos in loop_positions:
+            rotations.at[pos] = current_rot
+
+        # Bump the global counter
+        global_rotation = current_rot
+
+        # Advance i:
+        # – If we closed the loop (last_arr == start_dep), skip past the closer
+        # – Otherwise (chain‐break), abandon immediately and start at j
+        if j < n and last_arr == start_dep:
+            i = j + 1
+        else:
+            i = j
+
+    # 6) Map back into the original DataFrame
+    df['Rotation'] = 0
+    for pos, orig_idx in enumerate(valid_indices):
+        df.loc[orig_idx, 'Rotation'] = rotations.at[pos]
+
+    return df
+
+
 
 def process_pdf_folder(date_folder: str, log_callback=None):
     """
@@ -192,7 +252,7 @@ def get_original_reg_no(folder_path: Path, filename: str) -> str:
 
 if __name__ == "__main__":
     reg_nos_to_move = [
-        "9H-SLH",
+        "9H-SLD",
         # Add more reg_nos as needed
     ]
     move_multiple_files(reg_nos_to_move, TODAY_STR)
