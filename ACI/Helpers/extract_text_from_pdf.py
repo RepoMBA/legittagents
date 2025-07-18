@@ -2,21 +2,37 @@ import fitz  # PyMuPDF
 import re
 import json
 
-FLIGHT_CODES = './ACI/Database/flightCode.json'
+FLIGHT_CODES_PRIMARY = './ACI/Database/flightCode1.json'
+FLIGHT_CODES_SECONDARY = './ACI/Database/flightCode2.json'
+DELAY_REASON_CODES = './ACI/Database/DelayReason.json'
 PDF_PATH = './ACI/Database/To_Be_Processed/9H-SLD/9H-SLD004311.pdf'
 
-with open(FLIGHT_CODES) as f:
-    code_map = json.load(f)
+with open(FLIGHT_CODES_PRIMARY) as f:
+    code_map_1 = json.load(f)
+with open(FLIGHT_CODES_SECONDARY) as f:
+    code_map_2 = json.load(f)
+with open(DELAY_REASON_CODES) as f:
+    delay_codes = json.load(f)
 
-sorted_keys = sorted(code_map.keys(), key=len, reverse=True)
+
+sorted_keys = sorted(code_map_2.keys(), key=len, reverse=True)
 
 def replace_prefix(flight_code: str) -> str:
-    """If flight_code starts with one of our keys, replace that prefix."""
+    """First check for exact match in code_map_1, then check for prefix match in code_map_2."""
+    if not flight_code:
+        return flight_code
+    
+    # First, check for exact match in code_map_1
+    if flight_code.upper() in code_map_1:
+        return code_map_1[flight_code.upper()]
+    
+    # If no exact match, check for prefix match in code_map_2
     for key in sorted_keys:
         if flight_code.upper().startswith(key):
             # found a match—build new string:
             #   replacement + the rest of the original code
-            return code_map[key] + flight_code[len(key):]
+            return code_map_2[key] + flight_code[len(key):]
+    
     # no match → just return original
     return flight_code
 
@@ -55,7 +71,8 @@ def parse_fields(text, pdf_path=None):
         'Pax': r'$^',
         'Payload': r'$^',
         'ReasonOfCancellation': r'$^',
-        'Rotation': r'$^',
+        'Status': r'$^',
+        'Rotation': r'$^'
     }
 
     data = {}
@@ -83,6 +100,10 @@ def parse_fields(text, pdf_path=None):
 
     data['FlightNumber'] = replace_prefix(data['FlightNumber'])
     
+    # Populate DelayReason based on DelayCode
+    if data['DelayCode']:
+        data['DelayReason'] = get_delay_reason(data['DelayCode'])
+    
 
 
     return data
@@ -101,6 +122,27 @@ def main(pdf_path):
     print("Extracted Fields Dictionary:")
     for key, val in result.items():
         print(f"{key}: {val}")
+
+def get_delay_reason(delay_code: str) -> str:
+    """
+    Maps a delay code to its corresponding delay reason description.
+    Returns the delay reason if found, otherwise returns the original delay code.
+    """
+    if not delay_code:
+        return delay_code
+    
+    # Clean the delay code - extract only the numeric part before any slash
+    clean_code = delay_code.strip()
+    if '/' in clean_code:
+        clean_code = clean_code.split('/')[0]
+    
+    # Check if the delay code exists in our mapping
+    if clean_code in delay_codes:
+        return delay_codes[clean_code]
+    else: 
+        return delay_codes['99']
+    
+
 
 if __name__ == "__main__":
     main(PDF_PATH)
