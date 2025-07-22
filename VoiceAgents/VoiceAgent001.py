@@ -13,12 +13,12 @@ from livekit.plugins import (
     elevenlabs,
     silero,
 )
-
+from livekit.agents import cli  # Add this import
 from livekit.agents.metrics import LLMMetrics, STTMetrics, TTSMetrics, EOUMetrics
 import asyncio
 class Assistant(Agent):
     def __init__(self) -> None:
-        llm = openai.LLM(model="gpt-4o")
+        llm = openai.LLM(model="gpt-o4-mini")
         stt = openai.STT()
         tts = openai.TTS()
         #tts = elevenlabs.TTS(voice_id="CwhRBWXzGAHq8TQ4Fs17")  # example with defined voice
@@ -26,8 +26,28 @@ class Assistant(Agent):
 
         super().__init__(
             instructions="""
-                You are a helpful assistant communicating 
-                via voice
+                You are an AI interviewer conducting a professional job interview via voice. 
+                Your role is to:
+                
+                1. Welcome the candidate warmly and explain the interview process
+                2. Ask relevant questions about their experience, skills, and background
+                3. Follow up on their responses with probing questions when appropriate
+                4. Assess technical competencies related to the role
+                5. Evaluate cultural fit and soft skills
+                6. Give the candidate opportunities to ask questions about the role/company
+                7. Maintain a professional yet friendly tone throughout
+                8. Take notes mentally on key responses for evaluation
+                
+                Interview Structure:
+                - Start with introductions and overview
+                - Ask about their background and experience
+                - Dive into technical/role-specific questions
+                - Explore behavioral scenarios
+                - Allow time for candidate questions
+                - Conclude professionally
+                
+                Keep responses conversational and natural. Ask one question at a time.
+                Listen actively and build on their responses. Be encouraging while staying objective.
             """,
             stt=stt,
             llm=llm,
@@ -35,9 +55,9 @@ class Assistant(Agent):
             vad=silero_vad,
         )
 
-class MetricsAgent(Agent):
+class InterviewAgent(Agent):
     def __init__(self) -> None:
-        llm = openai.LLM(model="gpt-4o")
+        llm = openai.LLM(model="gpt-4o-mini")
         #llm = openai.LLM(model="gpt-4o-mini")   # Example with lower latency
         stt = openai.STT(model="whisper-1")
         tts = openai.TTS()
@@ -45,7 +65,33 @@ class MetricsAgent(Agent):
         silero_vad = silero.VAD.load()
         
         super().__init__(
-            instructions="You are a helpful assistant communicating via voice",
+            instructions="""
+                You are an experienced AI interviewer conducting professional job interviews via voice.
+                
+                Your responsibilities:
+                1. Create a welcoming, professional atmosphere
+                2. Conduct structured yet conversational interviews
+                3. Ask relevant questions based on the role requirements
+                4. Evaluate both technical skills and cultural fit
+                5. Provide clear next steps at the end
+                
+                Interview Flow:
+                - Welcome & Introduction (1-2 minutes)
+                - Background & Experience Discussion (5-10 minutes)  
+                - Technical/Role-Specific Questions (10-15 minutes)
+                - Behavioral & Situational Questions (5-10 minutes)
+                - Candidate Questions & Wrap-up (5 minutes)
+                
+                Guidelines:
+                - Ask one clear question at a time
+                - Listen actively and ask follow-up questions
+                - Keep track of time and coverage
+                - Be encouraging but objective
+                - Take mental notes on key responses
+                - Adapt questions based on the candidate's background
+                
+                Start by introducing yourself and asking the candidate to briefly introduce themselves.
+            """,
             stt=stt,
             llm=llm,
             tts=tts,
@@ -104,8 +150,9 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession()
 
     await session.start(
-        agent=MetricsAgent(),
+        agent=InterviewAgent(),
         room=ctx.room,
     )
 
-jupyter.run_app(WorkerOptions(entrypoint_fnc=entrypoint), jupyter_url="https://jupyter-api-livekit.vercel.app/api/join-token")
+if __name__ == "__main__":
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
