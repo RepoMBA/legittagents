@@ -73,7 +73,9 @@ def parse_fields(text, pdf_path=None):
         'Pax': r'$^',
         'Payload': r'$^',
         'ReasonOfCancellation': r'$^',
+        'OtherReasonOfCancellation': r'$^',
         'Status': r'$^',
+        'Comments': r'$^',
         'Rotation': r'$^'
     }
 
