@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "analysis_timestamp": "2025-07-23T15:24:15.558134",
+    "source": "voice_agents_analysis",
+    "version": "1.0"
+  },
+  "sessions": [
+    {
+      "session_id": "20250723_140548",
+      "duration": 11.208531141281128,
+      "participants": [],
+      "conversation_summary": {
+        "total_turns": 15,
+        "speaker_distribution": {
+          "interviewer": 8,
+          "candidate": 7
+        },
+        "duration": 11.208531141281128,
+        "topics_mentioned": [
+          "postgresql",
+          "degree",
+          "python",
+          "javascript",
+          "bachelor",
+          "team",
+          "experience",
+          "agile",
+          "company",
+          "docker",
+          "years",
+          "react",
+          "project",
+          "node.js",
+          "aws",
+          "microservices",
+          "database",
+          "ci/cd"
+        ],
+        "conversation_type": "job_interview"
+      },
+      "topics": [
+        "availability",
+        "challenges",
+        "experience",
+        "education",
+        "location",
+        "technical_skills",
+        "company_culture"
+      ],
+      "metrics": {
+        "total_turns": 15,
+        "interviewer_turns": 8,
+        "candidate_turns": 7,
+        "interviewer_talk_time": 39.1,
+        "candidate_talk_time": 94.3
+      },
+      "key_moments": [
+        {
+          "type": "conversation_start",
+          "timestamp": 1753259748.485924,
+          "speaker": "interviewer",
+          "description": "Conversation initiated",
+          "content": "Hello Alex! Thank you for joining us today. Could you please start by telling me about yourself?"
+        },
+        {
+          "type": "detailed_response",
+          "timestamp": 1753259748.963604,
+          "speaker": "candidate",
+          "description": "Comprehensive answer provided",
+          "content": "Hi! Thank you for having me. I'm Alex Johnson, a software engineer with 5 years of experience. I have a Bachelor's degree in Computer Science from UC ..."
+        },
+        {
+          "type": "important_question",
+          "timestamp": 1753259750.176358,
+          "speaker": "interviewer",
+          "description": "Key interview question asked",
+          "content": "That sounds like great experience. Now I have some specific questions I need to ask. What is your current notice period?"
+        },
+        {
+          "type": "important_question",
+          "timestamp": 1753259751.226227,
+          "speaker": "interviewer",
+          "description": "Key interview question asked",
+          "content": "Perfect. When can you start if we decide to move forward with your application?"
+        },
+        {
+          "type": "important_question",
+          "timestamp": 1753259752.2462652,
+          "speaker": "interviewer",
+          "description": "Key interview question asked",
+          "content": "What city are you currently based out of?"
+        },
+        {
+          "type": "important_question",
+          "timestamp": 1753259753.150988,
+          "speaker": "interviewer",
+          "description": "Key interview question asked",
+          "content": "Could you tell me about your qualifications and technical background in more detail?"
+        },
+        {
+          "type": "detailed_response",
+          "timestamp": 1753259753.643837,
+          "speaker": "candidate",
+          "description": "Comprehensive answer provided",
+          "content": "Certainly! I have a Bachelor's degree in Computer Science from UC Berkeley. Over my 5 years of experience, I've worked extensively with Python for bac..."
+        },
+        {
+          "type": "technical_assessment",
+          "timestamp": 1753259755.371447,
+          "speaker": "interviewer",
+          "description": "Technical question posed",
+          "content": "Excellent background! Can you tell me about a challenging project you've worked on recently?"
+        },
+        {
+          "type": "detailed_response",
+          "timestamp": 1753259755.869233,
+          "speaker": "candidate",
+          "description": "Comprehensive answer provided",
+          "content": "One of the most challenging projects was migrating our monolithic application to microservices. We had to maintain zero downtime while gradually decom..."
+        },
+        {
+          "type": "conversation_end",
+          "timestamp": 1753259758.6321568,
+          "speaker": "interviewer",
+          "description": "Conversation concluded",
+          "content": "Great questions! We work in cross-functional teams of 6-8 people, including developers, designers, and product managers. The biggest challenge right now is scaling our platform to handle 10x more users while maintaining performance. Thank you for your time today, Alex. We'll be in touch soon!"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_sessions": 1,
+    "total_turns": 15,
+    "participants": [],
+    "topics_discussed": [
+      "availability",
+      "challenges",
+      "experience",
+      "education",
+      "location",
+      "technical_skills",
+      "company_culture"
+    ],
+    "key_insights": [
+      "Average conversation length: 15.0 turns",
+      "Most discussed topics: availability, challenges, experience",
+      "Interview simulation detected - structured Q&A format observed"
+    ]
+  }
+}

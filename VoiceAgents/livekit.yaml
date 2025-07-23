@@ -1,0 +1,14 @@
+# LiveKit Server Configuration
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+# Development mode settings
+development: true
+log_level: info
+
+# Room settings
+room:
+  auto_create: true
+  empty_timeout: 300
+  departure_timeout: 20

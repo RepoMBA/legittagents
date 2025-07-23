@@ -8,6 +8,7 @@ myenv
 .pyc
 aiagentenv
 agentenv
+voiceagents_env
 *.pyc
 .ipynb
 Utils/.ipynb_checkpoints
