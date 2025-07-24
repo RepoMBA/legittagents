@@ -208,6 +208,9 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     excel_path = folder_path / "combined_data.xlsx"
     df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
     df.to_excel(excel_path, index=False)
+    # Write to JSON
+    json_path = folder_path / "combined_data.json"
+    df.to_json(json_path, orient='records', date_format='iso')
 
    # Append summary to local log file
     now = datetime.now()

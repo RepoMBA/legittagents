@@ -60,8 +60,8 @@ def parse_fields(text, pdf_path=None):
         'Arr': r'Arrival\s*\r?\n[0-9]{2}-[A-Za-z]{3}-[0-9]{2}\s*\r?\n(?:.*\r?\n)?([A-Z]{3})\s*/',
         'STD': r'$^',  # leave empty
         'STA': r'$^',  # leave empty
-        'ETA': r'$^',  # leave empty
         'ETD': r'$^',  # leave empty
+        'ETA': r'$^',  # leave empty 
         'ATD': r'OFF BLOCKS\s*([0-9]{2}:[0-9]{2})',
         'ATA': r'ON BLOCKS\s*([0-9]{2}:[0-9]{2})',
         'TO': r'AIRBORNE\s*([0-9]{2}:[0-9]{2})',        
