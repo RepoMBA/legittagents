@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "timestamp": "20250723_140548",
+    "duration_seconds": 11.208531141281128,
+    "mandatory_questions_completion": 100.0,
+    "simulation_type": "simple_interview_simulator"
+  },
+  "mandatory_questions": {
+    "required": [
+      "notice_period",
+      "start_date",
+      "location",
+      "qualifications"
+    ],
+    "asked": [
+      "notice_period",
+      "start_date",
+      "location",
+      "qualifications"
+    ],
+    "completion_rate": 100.0
+  },
+  "conversation_flow": [
+    {
+      "turn_number": 1,
+      "speaker": "interviewer",
+      "message": "Hello Alex! Thank you for joining us today. Could you please start by telling me about yourself?",
+      "duration": 3.5,
+      "type": "opening",
+      "timestamp": 1753259748.485924
+    },
+    {
+      "turn_number": 2,
+      "speaker": "candidate",
+      "message": "Hi! Thank you for having me. I'm Alex Johnson, a software engineer with 5 years of experience. I have a Bachelor's degree in Computer Science from UC Berkeley, and I've been working primarily with Python, JavaScript, React, and Node.js. Most recently, I was at TechFlow where I led a team of 4 developers building microservices.",
+      "duration": 18.2,
+      "type": "response",
+      "timestamp": 1753259748.963604
+    },
+    {
+      "turn_number": 3,
+      "speaker": "interviewer",
+      "message": "That sounds like great experience. Now I have some specific questions I need to ask. What is your current notice period?",
+      "duration": 4.1,
+      "type": "mandatory_question",
+      "timestamp": 1753259750.176358
+    },
+    {
+      "turn_number": 4,
+      "speaker": "candidate",
+      "message": "My current notice period is 2 weeks with my current employer at TechFlow.",
+      "duration": 4.8,
+      "type": "mandatory_answer",
+      "timestamp": 1753259750.683763
+    },
+    {
+      "turn_number": 5,
+      "speaker": "interviewer",
+      "message": "Perfect. When can you start if we decide to move forward with your application?",
+      "duration": 3.2,
+      "type": "mandatory_question",
+      "timestamp": 1753259751.226227
+    },
+    {
+      "turn_number": 6,
+      "speaker": "candidate",
+      "message": "Given my 2-week notice period, I would be available to start on February 15th, 2025.",
+      "duration": 5.1,
+      "type": "mandatory_answer",
+      "timestamp": 1753259751.688921
+    },
+    {
+      "turn_number": 7,
+      "speaker": "interviewer",
+      "message": "What city are you currently based out of?",
+      "duration": 2.3,
+      "type": "mandatory_question",
+      "timestamp": 1753259752.2462652
+    },
+    {
+      "turn_number": 8,
+      "speaker": "candidate",
+      "message": "I'm currently based in San Francisco, California.",
+      "duration": 3.7,
+      "type": "mandatory_answer",
+      "timestamp": 1753259752.663688
+    },
+    {
+      "turn_number": 9,
+      "speaker": "interviewer",
+      "message": "Could you tell me about your qualifications and technical background in more detail?",
+      "duration": 3.8,
+      "type": "mandatory_question",
+      "timestamp": 1753259753.150988
+    },
+    {
+      "turn_number": 10,
+      "speaker": "candidate",
+      "message": "Certainly! I have a Bachelor's degree in Computer Science from UC Berkeley. Over my 5 years of experience, I've worked extensively with Python for backend development, JavaScript and React for frontend work, and Node.js for full-stack applications. I have experience with PostgreSQL databases, AWS cloud services, and Docker containerization. At TechFlow, I led a team developing microservices architecture and implemented CI/CD pipelines. I'm also familiar with agile methodologies and have experience mentoring junior developers.",
+      "duration": 28.5,
+      "type": "mandatory_answer",
+      "timestamp": 1753259753.643837
+    },
+    {
+      "turn_number": 11,
+      "speaker": "interviewer",
+      "message": "Excellent background! Can you tell me about a challenging project you've worked on recently?",
+      "duration": 3.9,
+      "type": "technical_question",
+      "timestamp": 1753259755.371447
+    },
+    {
+      "turn_number": 12,
+      "speaker": "candidate",
+      "message": "One of the most challenging projects was migrating our monolithic application to microservices. We had to maintain zero downtime while gradually decomposing the system. I led the architecture design and coordinated with multiple teams. The biggest challenge was managing data consistency across services, which we solved using event sourcing and CQRS patterns.",
+      "duration": 22.3,
+      "type": "technical_answer",
+      "timestamp": 1753259755.869233
+    },
+    {
+      "turn_number": 13,
+      "speaker": "interviewer",
+      "message": "That's impressive! Do you have any questions about the role or our company?",
+      "duration": 3.1,
+      "type": "candidate_questions",
+      "timestamp": 1753259757.286756
+    },
+    {
+      "turn_number": 14,
+      "speaker": "candidate",
+      "message": "Yes, I'd love to know more about the team structure and what a typical day would look like in this role. Also, what are the biggest technical challenges the team is currently facing?",
+      "duration": 11.7,
+      "type": "candidate_inquiry",
+      "timestamp": 1753259757.744781
+    },
+    {
+      "turn_number": 15,
+      "speaker": "interviewer",
+      "message": "Great questions! We work in cross-functional teams of 6-8 people, including developers, designers, and product managers. The biggest challenge right now is scaling our platform to handle 10x more users while maintaining performance. Thank you for your time today, Alex. We'll be in touch soon!",
+      "duration": 15.2,
+      "type": "closing",
+      "timestamp": 1753259758.6321568
+    }
+  ],
+  "metrics": {
+    "total_turns": 15,
+    "interviewer_turns": 8,
+    "candidate_turns": 7,
+    "interviewer_talk_time": 39.1,
+    "candidate_talk_time": 94.3
+  }
+}

@@ -1,0 +1,36 @@
+# python package requirements file
+
+# Note to our Learners: Our courses are created at a specific point in time. The models and libraries used will naturally change over time.
+# If you download and run the notebooks locally, you should create a Python virtual environment  
+# with the Python version matching the one used in the course and use this requirements.txt file to install the required Python packages.
+# Due to the wide diversity of platforms and environments, DeepLearning does not explicitly support running locally. However, if you encounter
+# issues, the course support channel is a good place to ask questions.
+
+# python 3.10.11
+
+# Core LiveKit dependencies
+livekit-agents[openai,silero,elevenlabs]==1.0.11
+livekit-api>=1.0.2
+livekit>=1.0.3
+livekit-protocol~=1.0
+
+# Web framework and server
+fastapi==0.115.8
+uvicorn==0.34.0
+
+# Environment and configuration
+python-dotenv==1.0.1
+
+# HTTP client
+httpx==0.28.1
+
+# Audio processing and sound device management
+sounddevice>=0.5
+soundfile>=0.12.0
+numpy>=1.26.0
+
+# Development and debugging
+ipython==8.13.2
+
+# Standard library imports (included for completeness, no installation needed):
+# logging, asyncio, os, time, json, datetime, typing, re, dataclasses, pathlib

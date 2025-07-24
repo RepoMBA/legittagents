@@ -1,0 +1,164 @@
+{
+  "conversation_report": {
+    "metadata": {
+      "report_generated": "2025-07-23T15:26:30.000Z",
+      "report_type": "voice_agent_conversation_analysis",
+      "data_sources": ["previous_transcript", "live_agent_logs", "system_analysis"],
+      "version": "1.0"
+    },
+    "executive_summary": {
+      "session_status": "active",
+      "total_sessions_analyzed": 2,
+      "conversation_type": "job_interview_simulation",
+      "participants": ["ai_interviewer", "ai_candidate"],
+      "current_activity": "agents_connected_and_processing_audio"
+    },
+    "previous_conversation_analysis": {
+      "session_id": "20250723_140548",
+      "duration_seconds": 11.21,
+      "total_turns": 15,
+      "conversation_highlights": {
+        "opening": "Hello Alex! Thank you for joining us today. Could you please start by telling me about yourself?",
+        "candidate_introduction": "Hi! Thank you for having me. I'm Alex Johnson, a software engineer with 5 years of experience. I have a Bachelor's degree in Computer Science from UC Berkeley...",
+        "key_qualifications_discussed": {
+          "experience": "5 years as software engineer",
+          "education": "Bachelor's degree in Computer Science from UC Berkeley",
+          "technical_skills": ["Python", "JavaScript", "React", "Node.js", "PostgreSQL", "AWS", "Docker", "microservices"],
+          "leadership": "Led a team of 4 developers",
+          "availability": "2 weeks notice period, can start February 15th, 2025",
+          "location": "San Francisco, California"
+        },
+        "technical_challenge_response": "One of the most challenging projects was migrating our monolithic application to microservices. We had to maintain zero downtime while gradually decomposing the system...",
+        "closing": "Thank you for your time today, Alex. We'll be in touch soon!"
+      },
+      "mandatory_questions_completion": {
+        "notice_period": "✅ Answered: 2 weeks",
+        "start_date": "✅ Answered: February 15th, 2025", 
+        "location": "✅ Answered: San Francisco, California",
+        "qualifications": "✅ Answered: Detailed technical background provided"
+      },
+      "conversation_flow_analysis": {
+        "interviewer_turns": 8,
+        "candidate_turns": 7,
+        "interviewer_talk_time_seconds": 39.1,
+        "candidate_talk_time_seconds": 94.3,
+        "talk_time_ratio": "candidate_dominated",
+        "avg_response_length": {
+          "interviewer": 4.9,
+          "candidate": 13.5
+        }
+      }
+    },
+    "current_session_analysis": {
+      "session_start": "2025-07-23T15:24:47.000Z",
+      "status": "active",
+      "participants_detected": [
+        {
+          "id": "agent-AJ_p8hLyWkz8Qvs",
+          "type": "interviewer_agent",
+          "connection_status": "connected",
+          "audio_stream": "active"
+        },
+        {
+          "id": "simulated-agent-e88000a4ddba", 
+          "type": "candidate_agent",
+          "connection_status": "connected",
+          "audio_stream": "active"
+        }
+      ],
+      "system_status": {
+        "livekit_server": "running",
+        "audio_routing": "initialized",
+        "voice_activity_detection": "active",
+        "virtual_audio_cables": "not_detected",
+        "audio_devices_available": [
+          "shresth's iphone Microphone",
+          "Galaxy Buds2 Pro",
+          "MacBook Air Microphone", 
+          "MacBook Air Speakers",
+          "Microsoft Teams Audio",
+          "ZoomAudioDevice"
+        ]
+      },
+      "live_conversation_indicators": {
+        "agents_connected": true,
+        "audio_streams_active": true,
+        "voice_processing_active": true,
+        "conversation_in_progress": "likely"
+      }
+    },
+    "conversation_topics_identified": {
+      "technical_skills": {
+        "programming_languages": ["Python", "JavaScript"],
+        "frameworks": ["React", "Node.js"],
+        "databases": ["PostgreSQL"],
+        "cloud_platforms": ["AWS"],
+        "devops_tools": ["Docker", "CI/CD"],
+        "architectures": ["microservices", "monolithic to microservices migration"]
+      },
+      "professional_experience": {
+        "years_of_experience": 5,
+        "leadership_experience": "Led team of 4 developers",
+        "company_background": "TechFlow",
+        "project_highlights": "Microservices migration with zero downtime"
+      },
+      "availability_logistics": {
+        "notice_period": "2 weeks",
+        "start_date": "February 15th, 2025",
+        "location": "San Francisco, California",
+        "work_arrangement": "not_specified"
+      },
+      "education_background": {
+        "degree": "Bachelor's in Computer Science",
+        "institution": "UC Berkeley",
+        "additional_qualifications": "agile methodologies, mentoring experience"
+      }
+    },
+    "key_insights": {
+      "conversation_quality": "high_quality_structured_interview",
+      "candidate_preparation": "well_prepared_with_specific_examples",
+      "interviewer_effectiveness": "systematic_approach_covering_all_requirements",
+      "technical_depth": "appropriate_for_senior_software_engineer_role",
+      "areas_covered": [
+        "Personal introduction",
+        "Mandatory HR questions (notice period, start date, location)",
+        "Technical qualifications deep-dive", 
+        "Challenging project discussion",
+        "Candidate questions about role and company"
+      ],
+      "conversation_balance": "candidate_provided_detailed_responses_to_focused_questions",
+      "missing_elements": [
+        "Salary expectations discussion",
+        "Remote work preferences", 
+        "Career growth aspirations",
+        "Company culture fit assessment"
+      ]
+    },
+    "recommendations": {
+      "for_future_sessions": [
+        "Add salary expectation questions",
+        "Include company culture assessment",
+        "Discuss remote work arrangements",
+        "Add technical coding challenge",
+        "Include team dynamics questions"
+      ],
+      "technical_improvements": [
+        "Install BlackHole for better audio isolation (already installed, requires reboot)",
+        "Implement real-time transcript capture",
+        "Add conversation sentiment analysis",
+        "Create automated interview scoring system"
+      ]
+    },
+    "system_health": {
+      "audio_processing": "functioning",
+      "agent_connectivity": "stable", 
+      "conversation_continuity": "maintained",
+      "data_capture": "partial_manual_extraction",
+      "issues_detected": [
+        "Virtual audio cables not detected",
+        "Periodic agent restarts due to processing load",
+        "Real-time transcript extraction needs implementation"
+      ]
+    }
+  }
+}
