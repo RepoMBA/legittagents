@@ -480,7 +480,11 @@
             body: formData
           });
           if (!res.ok) {
-            logsDiv.textContent = '🛑 Upload failed: ' + res.statusText;
+            if (res.status === 413) {
+              logsDiv.textContent = '🛑 Upload failed: The selected folder is too large. Please try with a smaller selection of files.';
+            } else {
+              logsDiv.textContent = `🛑 Upload failed: ${res.status} ${res.statusText}`;
+            }
             return;
           }
 
