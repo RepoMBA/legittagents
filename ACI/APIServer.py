@@ -84,8 +84,9 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
             # file_location = os.path.join(upload_dir, file.filename)
             filename = os.path.basename(file.filename)
             file_location = os.path.join(upload_dir, filename)
-            with open(file_location, "wb+") as file_object:
-                shutil.copyfileobj(file.file, file_object)
+            async with aiofiles.open(file_location, "wb+") as file_object:
+                while content := await file.read(1024 * 1024):  # Read in 1MB chunks
+                    await file_object.write(content)
             saved_files.append(file.filename)
     # Trigger MCP processing
     processing_result = await async_trigger_processing(reg_no, saved_files)
