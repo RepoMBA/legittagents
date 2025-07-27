@@ -22,5 +22,5 @@ LOCAL_PROCESSED_DIR = "/home/ubuntu/proj/legittagents/ACI/"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USERNAME = "pratham.sharma@legittai.com"
-EMAIL_PASSWORD = "kezl rddk nbur nxpd" # App password for google account
+EMAIL_PASSWORD = "Google_App_Specific_password" # App password for google account
 EMAIL_RECIPIENT = "pratham.sharma@legittai.com"
