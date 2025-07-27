@@ -16,6 +16,7 @@ import glob
 import datetime
 from config import SERVER_HOST, SERVER_PORT, UPLOAD_DIRECTORY, PROCESSING_DIR, PROCESSED_DIR, LOG_DIR
 from fastapi.responses import PlainTextResponse
+from email_utils import send_email_with_attachments
 
 app = FastAPI()
 
@@ -130,6 +131,18 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
                 processing_log_content = f.read()
         else:
             processing_log_content = f"Note: processing_log.log not found at {processing_log_path}"
+
+    # --- Send email with logs ---
+    attachments_to_send = []
+    if log_files:
+        attachments_to_send.append(log_files[0])
+    if processed_folder and os.path.exists(processing_log_path):
+        attachments_to_send.append(processing_log_path)
+
+    if attachments_to_send:
+        email_subject = f"File Processing Complete for {reg_no}"
+        email_body = "Attached are the log files from the recent file processing."
+        send_email_with_attachments(email_subject, email_body, attachments_to_send)
 
     if excel_file_path and os.path.exists(excel_file_path):
         return {
