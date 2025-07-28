@@ -23,4 +23,4 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USERNAME = "pratham.sharma@legittai.com"
 EMAIL_PASSWORD = "Google_App_Specific_password" # App password for google account
-EMAIL_RECIPIENT = "pratham.sharma@legittai.com"
+EMAIL_RECIPIENT = ["pratham.sharma@legittai.com"]
