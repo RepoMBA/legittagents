@@ -141,7 +141,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
     if attachments_to_send:
         email_subject = f"File Processing Complete for {reg_no}"
-        email_body = "Attached are the log files from the recent file processing."
+        email_body = "Please find attached the log files from the recent file processing. \n\nThanks and Regards,\nLegitt AI Team"
         send_email_with_attachments(email_subject, email_body, attachments_to_send)
 
     if excel_file_path and os.path.exists(excel_file_path):

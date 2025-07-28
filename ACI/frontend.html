@@ -506,8 +506,8 @@
           let procFolder = null;
           try {
             // The processing_result is an array of objects with a 'text' property containing a JSON string.
-            if (data.processing_result && data.processing_result[0] && data.processing_result[0].text) {
-              const pr = JSON.parse(data.processing_result[0].text);
+            if (data.processing_result && data.processing_result.content[0] && data.processing_result.content[0].text) {
+              const pr = JSON.parse(data.processing_result.content[0].text);
               procFolder = pr.processed_folder;
             }
           } catch (e) {
