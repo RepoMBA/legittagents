@@ -94,16 +94,17 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     excel_file_path = None
     processed_folder = None
     print(f"processing Result : {processing_result}")
-    if processing_result and isinstance(processing_result, list):
+    if processing_result:
         try:
-            # The result is a list containing a TextContent object
-            # The 'text' attribute of this object is a JSON string
-            json_data = json.loads(processing_result[0].text)
-            print(json_data)
-            excel_file_path = json_data.get("excel_file")
-            processed_folder = json_data.get("processed_folder")
-            print(f"Processed Folder : {processed_folder}")
-        except (json.JSONDecodeError, AttributeError, IndexError) as e:
+            # The result is a CallToolResult object.
+            # The data is in the 'structured_content' attribute, which is a dictionary.
+            json_data = processing_result.structured_content
+            if json_data:
+                print(f"JSON Data : {json_data}")
+                excel_file_path = json_data.get("excel_file")
+                processed_folder = json_data.get("processed_folder")
+                print(f"Processed Folder : {processed_folder}")
+        except (AttributeError, TypeError) as e:
             print(f"Error parsing processing result: {e}")
             # Keep excel_file_path and processed_folder as None
 
