@@ -99,6 +99,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
             # The result is a list containing a TextContent object
             # The 'text' attribute of this object is a JSON string
             json_data = json.loads(processing_result[0].text)
+            print(json_data)
             excel_file_path = json_data.get("excel_file")
             processed_folder = json_data.get("processed_folder")
             print(f"Processed Folder : {processed_folder}")
@@ -141,7 +142,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     if log_files:
         attachments_to_send.append(log_files[0])
     
-    print(f"Processing log path: {processing_log_path} .... ... processed_folder: {processed_folder}")
+    print(f"Processing log path: .... processed_folder: {processed_folder}")
     if processed_folder and os.path.exists(processing_log_path):
         attachments_to_send.append(processing_log_path)
 
