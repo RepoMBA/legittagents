@@ -93,6 +93,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     processing_result = await async_trigger_processing(reg_no, saved_files)
     excel_file_path = None
     processed_folder = None
+    print(f"processing Result : {processing_result}")
     if processing_result and isinstance(processing_result, list):
         try:
             # The result is a list containing a TextContent object
@@ -100,6 +101,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
             json_data = json.loads(processing_result[0].text)
             excel_file_path = json_data.get("excel_file")
             processed_folder = json_data.get("processed_folder")
+            print(f"Processed Folder : {processed_folder}")
         except (json.JSONDecodeError, AttributeError, IndexError) as e:
             print(f"Error parsing processing result: {e}")
             # Keep excel_file_path and processed_folder as None
@@ -120,10 +122,12 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
     # Read processing log (from processed folder)
     processing_log_content = ""
+    print(f"Processing folder : {processed_folder}")
     if processed_folder:
         # The processed_folder from MCP is the full path.
         # We will construct the path from the base processed_dir and the folder name for consistency.
         folder_name = os.path.basename(processed_folder)
+        print(f"Folder basename : {folder_name}")
         processing_log_path = os.path.join(processed_dir, folder_name, "processing_log.log")
         print(f"Checking for processing log at: {processing_log_path}")
         if os.path.exists(processing_log_path):
