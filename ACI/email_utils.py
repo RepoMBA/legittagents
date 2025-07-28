@@ -15,7 +15,7 @@ def send_email_with_attachments(subject: str, body: str, attachment_paths: List[
         # Create a multipart message
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USERNAME
-        msg['To'] = EMAIL_RECIPIENT
+        msg['To'] = ", ".join(EMAIL_RECIPIENT)
         msg['Subject'] = subject
 
         # Add body to email
@@ -50,7 +50,7 @@ def send_email_with_attachments(subject: str, body: str, attachment_paths: List[
         server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
         server.sendmail(EMAIL_USERNAME, EMAIL_RECIPIENT, msg.as_string())
         server.quit()
-        print(f"Email sent successfully to {EMAIL_RECIPIENT}")
+        print(f"Email sent successfully to {', '.join(EMAIL_RECIPIENT)}")
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
