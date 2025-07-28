@@ -137,7 +137,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     if log_files:
         attachments_to_send.append(log_files[0])
     
-    print(f"Processing log path: {processing_log_path} .... exists: {os.path.exists(processing_log_path)}.... processed_folder: {processed_folder}")
+    print(f"Processing log path: {processing_log_path} .... ... processed_folder: {processed_folder}")
     if processed_folder and os.path.exists(processing_log_path):
         attachments_to_send.append(processing_log_path)
 
