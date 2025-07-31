@@ -28,3 +28,5 @@ EMAIL_RECIPIENT = ["pratham.sharma@legittai.com"]
 # ACI Api credentials
 ACI_USERNAME = "USERNAME"
 ACI_PASSWORD = "PASSWORD"
+ACI_TOKEN_URL = 'https://api01-skysearch.icentral.pro/api/token'
+ACI_UPLOAD_URL = 'https://api01-skysearch.icentral.pro/api/AircraftLease/UploadFlightData'

@@ -1,6 +1,6 @@
 import pandas as pd
 import requests
-from config import ACI_USERNAME, ACI_PASSWORD
+from config import ACI_USERNAME, ACI_PASSWORD, ACI_TOKEN_URL, ACI_UPLOAD_URL
 
 
 # Function to fetch the authentication token
@@ -12,7 +12,7 @@ def fetch_auth_token(username, password):
             'username': (None, username),
             'password': (None, password)
             }
-        response = requests.post('https://api01-skysearch.icentral.pro/api/token', files=files)
+        response = requests.post(ACI_TOKEN_URL, files=files)
         # response = requests.post(TOKEN_URL, data={"username": username, "password": password})
         response.raise_for_status()
         print("Authentication successful, fetching token...")
@@ -34,7 +34,7 @@ def fetch_auth_token(username, password):
 def upload_flight_data(token, flight_data):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
-        response = requests.post('https://api01-skysearch.icentral.pro/api/AircraftLease/UploadFlightData', headers=headers, json=flight_data)
+        response = requests.post(ACI_UPLOAD_URL, headers=headers, json=flight_data)
         response.raise_for_status()
         data = response.json()
         if data and data["status"] == "SUCCESS":
