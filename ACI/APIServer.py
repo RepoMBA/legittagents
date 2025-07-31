@@ -17,6 +17,7 @@ import datetime
 from config import SERVER_HOST, SERVER_PORT, UPLOAD_DIRECTORY, PROCESSING_DIR, PROCESSED_DIR, LOG_DIR
 from fastapi.responses import PlainTextResponse
 from email_utils import send_email_with_attachments
+from Helpers.excel_to_json import convert_excel_to_json
 
 app = FastAPI()
 
@@ -143,7 +144,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     if log_files:
         attachments_to_send.append(log_files[0])
     
-    print(f"Processing log path: .... processed_folder: {processed_folder}")
+    print(f"Processing log path: {processing_log_path} .... processed_folder: {processed_folder}")
     if processed_folder and os.path.exists(processing_log_path):
         attachments_to_send.append(processing_log_path)
 
@@ -153,11 +154,16 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
         send_email_with_attachments(email_subject, email_body, attachments_to_send)
         print(f"{attachments_to_send} sent to email.")
 
+    upload_excel_content = None
+    if excel_file_path and os.path.exists(excel_file_path):
+        upload_excel_content = convert_excel_to_json(excel_file_path)
+
     if excel_file_path and os.path.exists(excel_file_path):
         return {
             "move_log": move_log_content,
             "processing_log": processing_log_content,
             "excel_file": excel_file_path,
+            "upload_status": upload_excel_content,
             "info": f"files {saved_files} saved in {reg_no}",
             "processing_result": processing_result
         }
