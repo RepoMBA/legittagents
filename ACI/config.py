@@ -22,9 +22,9 @@ LOCAL_PROCESSED_DIR = "/home/ubuntu/proj/legittagents/ACI/"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USERNAME = "info@legittcontracts.com"
-EMAIL_PASSWORD="lkkhpifgezbcgydc"
-EMAIL_RECIPIENT = ["vandana@aircharter-international.com","ravi.baranwal@legittai.com"]
+EMAIL_PASSWORD="APP_PASSWORD"
+EMAIL_RECIPIENT = ["pratham.sharma@legittai.com"]
 
 # ACI Api credentials
-ACI_USERNAME = "api-01@aircharter-international.com"
-ACI_PASSWORD = "n0CYSpouR%"
+ACI_USERNAME = "USERNAME"
+ACI_PASSWORD = "PASSWORD"
