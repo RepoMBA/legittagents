@@ -139,6 +139,47 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
         else:
             processing_log_content = f"Note: processing_log.log not found at {processing_log_path}"
 
+    upload_excel_content = None
+    if excel_file_path and os.path.exists(excel_file_path):
+        upload_excel_content = convert_excel_to_json(excel_file_path)
+
+        timestamp = datetime.datetime.now().isoformat()
+        if upload_excel_content.get("status"):
+            log_message = (
+                f"\n\n[{timestamp}] "
+                f"Upload Status - Enquiry No: {upload_excel_content.get('enquiry_no', 'N/A')}, "
+                f"Successful Uploads: {upload_excel_content.get('success_count', 0)}, "
+                f"Failures: {len(upload_excel_content.get('failed_list', []))}"
+            )
+            if upload_excel_content.get("failed_list"):
+                failed_jsons = json.dumps(upload_excel_content["failed_list"], indent=2)
+                log_message += f"\nFailed Entries:\n{failed_jsons}"
+        else:
+            error = upload_excel_content.get("error")
+            print(f"[{error}]")
+            log_message = (
+                f"\n\n[{timestamp}] "
+                f"Upload Failed - Error: {str(error)}, "
+                f"Enquiry No: {upload_excel_content.get('enquiry_no', 'Unknown')}"
+            )
+
+        with open(processing_log_path, "a") as log_file:
+            log_file.write(log_message + "\n")
+    
+    upload_status_message = ""
+    if upload_excel_content.get("status"):
+        if (len(upload_excel_content.get("failed_list")) == 0):
+            upload_status_message = (
+                f"Successfully uploaded extracted information from all PDFs for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
+            )
+        else:
+            upload_status_message = (
+                f"Failed to upload extracted information from {len(upload_excel_content.get('failed_list'))} file(s). "
+                "Please refer to the attached log file for details."
+            )
+    else:
+        upload_status_message = f"Failed to upload the processed infromation for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
+
     # --- Send email with logs ---
     attachments_to_send = []
     if log_files:
@@ -150,13 +191,9 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
     if attachments_to_send:
         email_subject = f"File Processing Complete for {reg_no}"
-        email_body = "Please find attached the log files from the recent file processing. \n\nThanks and Regards,\nLegitt AI Team"
+        email_body = f"{upload_status_message}\n\nPlease find attached the log files from the recent file processing. \n\nThanks and Regards,\nLegitt AI Team"
         send_email_with_attachments(email_subject, email_body, attachments_to_send)
         print(f"{attachments_to_send} sent to email.")
-
-    upload_excel_content = None
-    if excel_file_path and os.path.exists(excel_file_path):
-        upload_excel_content = convert_excel_to_json(excel_file_path)
 
     if excel_file_path and os.path.exists(excel_file_path):
         return {
