@@ -102,6 +102,7 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col=
 
     # parse ATD strings like '04:21' into timestamps (default date = 1900-01-01)
     df[atd_col] = pd.to_datetime(df[atd_col], format='%H:%M', errors='coerce')
+    df[atd_col] = df[atd_col].dt.strftime('%H:%M')
 
     # 2) Sort by Registration → Date → ATD
     df = df.sort_values(by=[reg_col, date_col, atd_col]).reset_index(drop=True)
