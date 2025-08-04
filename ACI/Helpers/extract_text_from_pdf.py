@@ -2,10 +2,12 @@ import fitz  # PyMuPDF
 import re
 import json
 
-FLIGHT_CODES_PRIMARY = './ACI/Database/flightCode1.json'
-FLIGHT_CODES_SECONDARY = './ACI/Database/flightCode2.json'
-DELAY_REASON_CODES = './ACI/Database/DelayReason.json'
-PDF_PATH = './ACI/Database/To_Be_Processed/9H-SLD/9H-SLD004311.pdf'
+# FLIGHT_CODES = '/home/ubuntu/proj/legittagents/ACI/Database/flightCode.json'
+
+FLIGHT_CODES_PRIMARY = '/home/ubuntu/proj/legittagents/ACI/Database/flightCode1.json'
+FLIGHT_CODES_SECONDARY = '/home/ubuntu/proj/legittagents/ACI/Database/flightCode2.json'
+DELAY_REASON_CODES = '/home/ubuntu/proj/legittagents/ACI/Database/DelayReason.json'
+PDF_PATH = '/home/ubuntu/proj/legittagents/ACI/Database/To_Be_Processed/9H-SLD/9H-SLD004311.pdf'
 
 with open(FLIGHT_CODES_PRIMARY) as f:
     code_map_1 = json.load(f)
@@ -71,7 +73,9 @@ def parse_fields(text, pdf_path=None):
         'Pax': r'$^',
         'Payload': r'$^',
         'ReasonOfCancellation': r'$^',
+        'OtherReasonOfCancellation': r'$^',
         'Status': r'$^',
+        'Comments': r'$^',
         'Rotation': r'$^'
     }
 

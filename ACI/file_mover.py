@@ -3,14 +3,15 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 import sys
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
-DATABASE_DIR = Path("./ACI/Database")
-TO_BE_PROCESSED = DATABASE_DIR / "To_Be_Processed"
-PROCESSING = DATABASE_DIR / "Processing"
-PROCESSED = DATABASE_DIR / "Processed"
+DATABASE_PATH = Path("/home/ubuntu/proj/legittagents/ACI/Database")
+TO_BE_PROCESSED = DATABASE_PATH / "To_Be_Processed"
+PROCESSING = DATABASE_PATH / "Processing"
+PROCESSED = DATABASE_PATH / "Processed"
 LOG_FOLDER = TO_BE_PROCESSED / "move_logs" 
 TODAY_STR = datetime.today().strftime("%Y-%m-%d_%H-%M")
 DATE_STR = datetime.today().strftime("%d/%m/%y %H:%M:%S")
@@ -22,7 +23,6 @@ def init_directories():
     LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 
 init_directories()
-
 
 def get_today_folder(today_str: str) -> Path:
     """Returns the processing folder path for the given date string, creating it if necessary."""
@@ -95,11 +95,18 @@ def move_multiple_files(reg_no_list, today_str: str, log_callback=None):
             if log_callback:
                 log_callback(err_msg + "\n")
 
-def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr'):
+def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col='Registration', atd_col='ATD'):
     # 1) Copy, parse & sort by date
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
-    df = df.sort_values(date_col).reset_index(drop=True)
+
+    # parse ATD strings like '04:21' into timestamps (default date = 1900-01-01)
+    df[atd_col] = pd.to_datetime(df[atd_col], format='%H:%M', errors='coerce')
+
+    # 2) Sort by Registration → Date → ATD
+    df = df.sort_values(by=[reg_col, date_col, atd_col]).reset_index(drop=True)
+
+    # df = df.sort_values(date_col).reset_index(drop=True)
     
     # 2) Add Status column based on takeoff status
     df['Status'] = df.apply(lambda row: 'Cancelled' if row[dep_col] == row[arr_col] else 'Completed', axis=1)

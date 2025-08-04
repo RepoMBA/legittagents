@@ -7,6 +7,7 @@ from mcp_client import async_trigger_processing
 import asyncio
 import aiofiles
 import time
+import json
 import glob
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,8 @@ import glob
 import datetime
 from config import SERVER_HOST, SERVER_PORT, UPLOAD_DIRECTORY, PROCESSING_DIR, PROCESSED_DIR, LOG_DIR
 from fastapi.responses import PlainTextResponse
+from email_utils import send_email_with_attachments
+from Helpers.excel_to_json import convert_excel_to_json
 
 app = FastAPI()
 
@@ -83,20 +86,28 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
             # file_location = os.path.join(upload_dir, file.filename)
             filename = os.path.basename(file.filename)
             file_location = os.path.join(upload_dir, filename)
-            with open(file_location, "wb+") as file_object:
-                shutil.copyfileobj(file.file, file_object)
+            async with aiofiles.open(file_location, "wb+") as file_object:
+                while content := await file.read(1024 * 1024):  # Read in 1MB chunks
+                    await file_object.write(content)
             saved_files.append(file.filename)
     # Trigger MCP processing
     processing_result = await async_trigger_processing(reg_no, saved_files)
     excel_file_path = None
-    if isinstance(processing_result, dict):
-        excel_file_path = processing_result.get("excel_file")
-        processed_folder = processing_result.get("processed_folder")
-    elif isinstance(processing_result, list) and processing_result and isinstance(processing_result[0], dict):
-        excel_file_path = processing_result[0].get("excel_file")
-        processed_folder = processing_result[0].get("processed_folder")
-    else:
-        processed_folder = None
+    processed_folder = None
+    print(f"processing Result : {processing_result}")
+    if processing_result:
+        try:
+            # The result is a CallToolResult object.
+            # The data is in the 'structured_content' attribute, which is a dictionary.
+            json_data = processing_result.structured_content
+            if json_data:
+                print(f"JSON Data : {json_data}")
+                excel_file_path = json_data.get("excel_file")
+                processed_folder = json_data.get("processed_folder")
+                print(f"Processed Folder : {processed_folder}")
+        except (AttributeError, TypeError) as e:
+            print(f"Error parsing processing result: {e}")
+            # Keep excel_file_path and processed_folder as None
 
     # Read move log (latest by date)
     log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
@@ -114,17 +125,82 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
     # Read processing log (from processed folder)
     processing_log_content = ""
+    print(f"Processing folder : {processed_folder}")
     if processed_folder:
-        processing_log_path = os.path.join(processed_folder, "processing_log.log")
+        # The processed_folder from MCP is the full path.
+        # We will construct the path from the base processed_dir and the folder name for consistency.
+        folder_name = os.path.basename(processed_folder)
+        print(f"Folder basename : {folder_name}")
+        processing_log_path = os.path.join(processed_dir, folder_name, "processing_log.log")
+        print(f"Checking for processing log at: {processing_log_path}")
         if os.path.exists(processing_log_path):
             with open(processing_log_path, "r") as f:
                 processing_log_content = f.read()
+        else:
+            processing_log_content = f"Note: processing_log.log not found at {processing_log_path}"
+
+    upload_excel_content = None
+    if excel_file_path and os.path.exists(excel_file_path):
+        upload_excel_content = convert_excel_to_json(excel_file_path)
+
+        timestamp = datetime.datetime.now().isoformat()
+        if upload_excel_content.get("status"):
+            log_message = (
+                f"\n\n[{timestamp}] "
+                f"Upload Status - Enquiry No: {upload_excel_content.get('enquiry_no', 'N/A')}, "
+                f"Successful Uploads: {upload_excel_content.get('success_count', 0)}, "
+                f"Failures: {len(upload_excel_content.get('failed_list', []))}"
+            )
+            if upload_excel_content.get("failed_list"):
+                failed_jsons = json.dumps(upload_excel_content["failed_list"], indent=2)
+                log_message += f"\nFailed Entries:\n{failed_jsons}"
+        else:
+            error = upload_excel_content.get("error")
+            print(f"[{error}]")
+            log_message = (
+                f"\n\n[{timestamp}] "
+                f"Upload Failed - Error: {str(error)}, "
+                f"Enquiry No: {upload_excel_content.get('enquiry_no', 'Unknown')}"
+            )
+
+        with open(processing_log_path, "a") as log_file:
+            log_file.write(log_message + "\n")
+    
+    upload_status_message = ""
+    if upload_excel_content.get("status"):
+        if (len(upload_excel_content.get("failed_list")) == 0):
+            upload_status_message = (
+                f"Successfully uploaded extracted information from all PDFs for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
+            )
+        else:
+            upload_status_message = (
+                f"Failed to upload extracted information from {len(upload_excel_content.get('failed_list'))} file(s). "
+                "Please refer to the attached log file for details."
+            )
+    else:
+        upload_status_message = f"Failed to upload the processed infromation for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
+
+    # --- Send email with logs ---
+    attachments_to_send = []
+    if log_files:
+        attachments_to_send.append(log_files[0])
+    
+    print(f"Processing log path: {processing_log_path} .... processed_folder: {processed_folder}")
+    if processed_folder and os.path.exists(processing_log_path):
+        attachments_to_send.append(processing_log_path)
+
+    if attachments_to_send:
+        email_subject = f"File Processing Complete for {reg_no}"
+        email_body = f"{upload_status_message}\n\nPlease find attached the log files from the recent file processing. \n\nThanks and Regards,\nLegitt AI Team"
+        send_email_with_attachments(email_subject, email_body, attachments_to_send)
+        print(f"{attachments_to_send} sent to email.")
 
     if excel_file_path and os.path.exists(excel_file_path):
         return {
             "move_log": move_log_content,
             "processing_log": processing_log_content,
             "excel_file": excel_file_path,
+            "upload_status": upload_excel_content,
             "info": f"files {saved_files} saved in {reg_no}",
             "processing_result": processing_result
         }
@@ -200,5 +276,3 @@ def serve_frontend():
 
 if __name__ == "__main__":
     uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
-
-    
