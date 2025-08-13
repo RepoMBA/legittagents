@@ -214,7 +214,10 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     df = pd.DataFrame(extracted_data)
     df = assign_rotations(df)
     excel_path = folder_path / "combined_data.xlsx"
+    df.rename(columns={'DelayDuration': 'Duration'}, inplace=True)
+    df.drop(columns=['DelayReason'], inplace=True)
     df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
+    df['DelayCode'] = df['DelayCode'].str.split('/').str[0]
     df.to_excel(excel_path, index=False)
 
    # Append summary to local log file
