@@ -139,6 +139,17 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
         else:
             processing_log_content = f"Note: processing_log.log not found at {processing_log_path}"
 
+    duplicate_file_path = ""
+    if processed_folder:
+        folder_name = os.path.basename(processed_folder)
+        excel_folder_path = os.path.join(processed_dir, folder_name)
+        from Helpers.extract_duplicates_helper import extract_duplicates_from_file
+        file_path = extract_duplicates_from_file(excel_folder_path)
+        if file_path == None:
+            print("Duplicate date file not generated!!")
+        else:
+            duplicate_file_path = file_path        
+
     upload_excel_content = None
     if excel_file_path and os.path.exists(excel_file_path):
         upload_excel_content = convert_excel_to_json(excel_file_path)
@@ -178,7 +189,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
                 "Please refer to the attached log file for details."
             )
     else:
-        upload_status_message = f"Failed to upload the processed infromation for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
+        upload_status_message = f"Failed to upload the processed information for Enquiry Number: {upload_excel_content.get('enquiry_no')}."
 
     # --- Send email with logs ---
     attachments_to_send = []
@@ -188,6 +199,9 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     print(f"Processing log path: {processing_log_path} .... processed_folder: {processed_folder}")
     if processed_folder and os.path.exists(processing_log_path):
         attachments_to_send.append(processing_log_path)
+
+    if duplicate_file_path != "":
+        attachments_to_send.append(duplicate_file_path)
 
     if attachments_to_send:
         email_subject = f"File Processing Complete for {reg_no}"
