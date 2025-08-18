@@ -205,7 +205,10 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
 
     if attachments_to_send:
         email_subject = f"File Processing Complete for {reg_no}"
-        email_body = f"{upload_status_message}\n\nPlease find attached the log files from the recent file processing. \n\nThanks and Regards,\nLegitt AI Team"
+        email_body = f"{upload_status_message}\n\nPlease find attached the log files from the recent file processing."
+        if duplicate_file_path:
+            email_body += "\n\nA file with duplicate entries has also been attached for your review."
+        email_body += "\n\nThanks and Regards,\nLegitt AI Team"
         send_email_with_attachments(email_subject, email_body, attachments_to_send)
         print(f"{attachments_to_send} sent to email.")
 
