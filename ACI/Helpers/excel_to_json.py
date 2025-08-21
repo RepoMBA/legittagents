@@ -77,7 +77,7 @@ def convert_excel_to_json(file_path):
             else:
                 failed_list.append(json_data)
 
-        print(f"[Successfully uploaded {count} enteries for Enquiry Number {data[0].get("EnquiryNo")}]")
+        print(f"[Successfully uploaded {count} enteries for Enquiry Number {data[0].get('EnquiryNo')}]")
         print(f"Failed List : {failed_list}")
         return {
             "enquiry_no" : data[0].get("EnquiryNo"),

@@ -157,7 +157,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
         timestamp = datetime.datetime.now().isoformat()
         if upload_excel_content.get("status"):
             log_message = (
-                f"\n\n[{timestamp}] "
+                f"\n\nStarting the extracted data upload process...\n[{timestamp}] "
                 f"Upload Status - Enquiry No: {upload_excel_content.get('enquiry_no', 'N/A')}, "
                 f"Successful Uploads: {upload_excel_content.get('success_count', 0)}, "
                 f"Failures: {len(upload_excel_content.get('failed_list', []))}"
@@ -169,7 +169,7 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
             error = upload_excel_content.get("error")
             print(f"[{error}]")
             log_message = (
-                f"\n\n[{timestamp}] "
+                f"\n\nStarting the extracted data upload process...\n[{timestamp}] "
                 f"Upload Failed - Error: {str(error)}, "
                 f"Enquiry No: {upload_excel_content.get('enquiry_no', 'Unknown')}"
             )
@@ -199,6 +199,8 @@ async def create_upload_files(reg_no: str = Form(...), files: List[UploadFile] =
     print(f"Processing log path: {processing_log_path} .... processed_folder: {processed_folder}")
     if processed_folder and os.path.exists(processing_log_path):
         attachments_to_send.append(processing_log_path)
+
+    attachments_to_send.append(excel_file_path)
 
     if duplicate_file_path != "":
         attachments_to_send.append(duplicate_file_path)

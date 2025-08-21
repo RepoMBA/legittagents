@@ -3,12 +3,13 @@ from pathlib import Path
 from datetime import datetime
 import pandas as pd
 import sys
+from config import DATABASE_DIRECTORY
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from Helpers.extract_text_from_pdf import data_retriever as extract_data_from_pdf
 
 # Constants for base directories
-DATABASE_PATH = Path("/home/ubuntu/proj/legittagents/ACI/Database")
+DATABASE_PATH = Path(DATABASE_DIRECTORY)
 TO_BE_PROCESSED = DATABASE_PATH / "To_Be_Processed"
 PROCESSING = DATABASE_PATH / "Processing"
 PROCESSED = DATABASE_PATH / "Processed"
@@ -95,7 +96,12 @@ def move_multiple_files(reg_no_list, today_str: str, log_callback=None):
             if log_callback:
                 log_callback(err_msg + "\n")
 
-def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col='Registration', atd_col='ATD'):
+
+def _blank(x):
+    return pd.isna(x) or (isinstance(x, str) and x.strip() == '')
+
+
+def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col='Registration', atd_col='ATD', to_col='TO', ldg_col='LDG'):
     # 1) Copy, parse & sort by date
     df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], format='%d-%b-%y')
@@ -110,7 +116,15 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col=
     # df = df.sort_values(date_col).reset_index(drop=True)
     
     # 2) Add Status column based on takeoff status
-    df['Status'] = df.apply(lambda row: 'Cancelled' if row[dep_col] == row[arr_col] else 'Completed', axis=1)
+    # df['Status'] = df.apply(lambda row: 'Cancelled' if row[dep_col] == row[arr_col] else 'Completed', axis=1)
+    df['Status'] = df.apply(
+        lambda row: (
+            'Not Flown'
+            if (_blank(row[to_col]) and _blank(row[ldg_col]))
+            else ('Cancelled' if row[dep_col] == row[arr_col] else 'Completed')
+        ),
+        axis=1
+    )
     
     # 3) Filter out no‐takeoff flights
     valid = df[df[dep_col] != df[arr_col]].copy()
@@ -222,10 +236,13 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     df.drop(columns=['DelayReason'], inplace=True)
     df['Date'] = df['Date'].dt.strftime('%d-%b-%y')
     df['DelayCode'] = df['DelayCode'].str.split('/').str[0]
-    df_extended = df
+    df_extended = df.copy()
     df_extended.to_excel(excel_path_2, index=False)
-    df.drop(columns=['filename'], inplace=True)
-    df.to_excel(excel_path, index=False)
+    # df.drop(columns=['filename'], inplace=True)
+    # df.to_excel(excel_path, index=False)
+    df_combined = df[df['Status'] != 'Not Flown'].copy()
+    df_combined.drop(columns=['filename'], inplace=True)
+    df_combined.to_excel(excel_path, index=False)
 
    # Append summary to local log file
     now = datetime.now()
@@ -233,7 +250,7 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     summary_message = (
         f"Successfully processed files: {', '.join(success_files) if success_files else 'None'}\n"
         f"Failed files: {', '.join(failed_files) if failed_files else 'None'}\n"
-        f"{len(success_files)} files processed and appended to combined_data.xlsx on {date_str}\n"
+        f"{len(success_files)} files processed and appended to combined_data.xlsx on {date_str}\nData Extraction Completed Successfully!!\n"
     )
     with local_log.open("a") as log:
         log.write(summary_message)
