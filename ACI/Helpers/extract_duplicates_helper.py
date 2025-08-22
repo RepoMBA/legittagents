@@ -30,7 +30,7 @@ def extract_duplicates_from_file(folder_path:str, file_name:str = "combined_data
 
     dup_mask = key_df.duplicated(keep=False)
     duplicates = df.loc[dup_mask].copy()
-    duplicates = duplicates.assign(AIReason="Repeated Flight Number")
+    duplicates = duplicates.assign(AIReason="Duplicate flight number on same date.")
 
     # Construct the output path correctly using pathlib
     # out_path = Path(folder_path) / "duplicates.xlsx"

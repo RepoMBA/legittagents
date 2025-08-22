@@ -177,6 +177,19 @@ def assign_rotations(df, date_col='Date', dep_col='Dep', arr_col='Arr', reg_col=
     return df
 
 
+def drop_all_dupe_keys(df, key_cols=("EnquiryNo", "Date", "FlightNumber")):
+    """
+    Remove every row that shares a duplicate composite key.
+    (i.e., if a key appears N>1 times, drop all N rows)
+    """
+    tmp = df.copy()
+    # Normalize strings to avoid whitespace-caused misses
+    for c in key_cols:
+        if c in tmp.columns and tmp[c].dtype == object:
+            tmp[c] = tmp[c].str.strip()
+    dupe_mask = tmp.duplicated(subset=list(key_cols), keep=False)
+    return df.loc[~dupe_mask].copy()
+
 
 def process_pdf_folder(date_folder: str, log_callback=None):
     """
@@ -241,6 +254,7 @@ def process_pdf_folder(date_folder: str, log_callback=None):
     # df.drop(columns=['filename'], inplace=True)
     # df.to_excel(excel_path, index=False)
     df_combined = df[df['Status'] != 'Not Flown'].copy()
+    df_combined = drop_all_dupe_keys(df_combined, ("EnquiryNo", "Date", "FlightNumber"))    # To Remove all Duplicates
     df_combined.drop(columns=['filename'], inplace=True)
     df_combined.to_excel(excel_path, index=False)
 
